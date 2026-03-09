@@ -8,13 +8,26 @@ namespace StellarNet.Lite.Shared.Core
     /// </summary>
     public struct Packet
     {
+        // 核心新增：序列号，用于底层防重放与幂等拦截
+        public uint Seq;
         public int MsgId;
         public NetScope Scope;
         public string RoomId;
         public byte[] Payload;
 
+        public Packet(uint seq, int msgId, NetScope scope, string roomId, byte[] payload)
+        {
+            Seq = seq;
+            MsgId = msgId;
+            Scope = scope;
+            RoomId = roomId ?? string.Empty;
+            Payload = payload;
+        }
+
+        // 兼容旧代码的构造函数，默认 Seq 为 0
         public Packet(int msgId, NetScope scope, string roomId, byte[] payload)
         {
+            Seq = 0;
             MsgId = msgId;
             Scope = scope;
             RoomId = roomId ?? string.Empty;
@@ -24,7 +37,6 @@ namespace StellarNet.Lite.Shared.Core
 
     /// <summary>
     /// 独立回放帧结构 (高性能值类型版)。
-    /// 核心优化：改为 struct，防止长时间录制导致服务端 List 产生海量堆内存对象。
     /// </summary>
     public struct ReplayFrame
     {

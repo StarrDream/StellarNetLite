@@ -34,6 +34,7 @@ namespace StellarNet.Lite.Server.Components
             }
 
             _readyStates[session.SessionId] = false;
+
             var msg = new S2C_MemberJoined { SessionId = session.SessionId };
             Broadcast(301, msg);
 
@@ -45,6 +46,7 @@ namespace StellarNet.Lite.Server.Components
             if (session == null) return;
 
             _readyStates.Remove(session.SessionId);
+
             var msg = new S2C_MemberLeft { SessionId = session.SessionId };
             Broadcast(302, msg);
 
@@ -54,7 +56,6 @@ namespace StellarNet.Lite.Server.Components
             }
         }
 
-        // 核心修复：处理房主异常掉线（未离开房间，但物理连接断开）
         public override void OnMemberOffline(Session session)
         {
             if (session == null) return;
@@ -66,7 +67,6 @@ namespace StellarNet.Lite.Server.Components
             }
         }
 
-        // 辅助方法：智能移交房主权限
         private void MigrateHost()
         {
             _ownerSessionId = string.Empty;
@@ -79,18 +79,17 @@ namespace StellarNet.Lite.Server.Components
                 {
                     if (string.IsNullOrEmpty(fallbackSessionId))
                     {
-                        fallbackSessionId = kvp.Key; // 记录第一个作为保底
+                        fallbackSessionId = kvp.Key;
                     }
 
                     if (memberSession.IsOnline)
                     {
-                        _ownerSessionId = kvp.Key; // 优先移交给在线玩家
+                        _ownerSessionId = kvp.Key;
                         break;
                     }
                 }
             }
 
-            // 如果全员离线，则交由保底玩家（等待其重连或房间超时销毁）
             if (string.IsNullOrEmpty(_ownerSessionId))
             {
                 _ownerSessionId = fallbackSessionId;
@@ -141,27 +140,71 @@ namespace StellarNet.Lite.Server.Components
         [NetHandler]
         public void OnC2S_SetReady(Session session, C2S_SetReady msg)
         {
-            if (session == null)
-            {
-                Debug.LogError("[ServerRoomSettings] 准备失败: session 为空");
-                return;
-            }
+            if (session == null || msg == null) return;
 
-            if (msg == null)
-            {
-                Debug.LogError($"[ServerRoomSettings] 准备失败: msg 为空, SessionId: {session.SessionId}");
-                return;
-            }
-
-            if (!_readyStates.ContainsKey(session.SessionId))
-            {
-                Debug.LogError($"[ServerRoomSettings] 准备失败: 玩家不在房间中, SessionId: {session.SessionId}");
-                return;
-            }
+            if (!_readyStates.ContainsKey(session.SessionId)) return;
 
             _readyStates[session.SessionId] = msg.IsReady;
+
             var notify = new S2C_MemberReadyChanged { SessionId = session.SessionId, IsReady = msg.IsReady };
             Broadcast(304, notify);
+        }
+
+        [NetHandler]
+        public void OnC2S_StartGame(Session session, C2S_StartGame msg)
+        {
+            if (session == null) return;
+
+            if (session.SessionId != _ownerSessionId)
+            {
+                Debug.LogWarning($"[ServerRoomSettings] 越权拦截: 非房主 {session.SessionId} 尝试开始游戏");
+                return;
+            }
+
+            if (Room.State != RoomState.Waiting)
+            {
+                Debug.LogWarning($"[ServerRoomSettings] 状态拦截: 房间当前状态为 {Room.State}，无法开始游戏");
+                return;
+            }
+
+            foreach (var kvp in _readyStates)
+            {
+                if (kvp.Key != _ownerSessionId && !kvp.Value)
+                {
+                    Debug.LogWarning($"[ServerRoomSettings] 拦截: 玩家 {kvp.Key} 未准备，无法开始游戏");
+                    return;
+                }
+            }
+
+            Room.StartGame();
+
+            var notify = new S2C_GameStarted { StartUnixTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds() };
+            Broadcast(501, notify);
+        }
+
+        // 核心新增：处理房主发起的强制结束游戏请求 (502)
+        [NetHandler]
+        public void OnC2S_EndGame(Session session, C2S_EndGame msg)
+        {
+            if (session == null) return;
+
+            if (session.SessionId != _ownerSessionId)
+            {
+                Debug.LogWarning($"[ServerRoomSettings] 越权拦截: 非房主 {session.SessionId} 尝试强制结束游戏");
+                return;
+            }
+
+            if (Room.State != RoomState.Playing)
+            {
+                Debug.LogWarning($"[ServerRoomSettings] 状态拦截: 房间当前状态为 {Room.State}，无法强制结束");
+                return;
+            }
+
+            Room.EndGame();
+
+            // 广播游戏结束事件 (503)
+            var notify = new S2C_GameEnded { WinnerSessionId = "房主强制中止" };
+            Broadcast(503, notify);
         }
 
         private void Broadcast(int msgId, object msgObj)

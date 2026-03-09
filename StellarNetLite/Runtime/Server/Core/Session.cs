@@ -8,14 +8,13 @@ namespace StellarNet.Lite.Server.Core
         public string SessionId { get; }
         public string Uid { get; }
         public int ConnectionId { get; private set; }
-
         public string CurrentRoomId { get; private set; }
-
-        // 核心修复 1：新增房间授权通行证。防止恶意客户端越权发送握手协议强行加房
         public string AuthorizedRoomId { get; private set; }
-
         public bool IsOnline => ConnectionId >= 0;
         public DateTime LastOfflineTime { get; private set; }
+
+        // 架构说明：记录该会话最后一次成功处理的网络包序列号，用于底层防重放
+        public uint LastReceivedSeq { get; private set; }
 
         public Session(string sessionId, string uid, int connectionId)
         {
@@ -25,6 +24,7 @@ namespace StellarNet.Lite.Server.Core
             CurrentRoomId = string.Empty;
             AuthorizedRoomId = string.Empty;
             LastOfflineTime = DateTime.UtcNow;
+            LastReceivedSeq = 0;
         }
 
         public void UpdateConnection(int newConnectionId)
@@ -48,13 +48,11 @@ namespace StellarNet.Lite.Server.Core
             CurrentRoomId = string.Empty;
         }
 
-        // 颁发通行证（在建房/加房校验通过后调用）
         public void AuthorizeRoom(string roomId)
         {
             AuthorizedRoomId = roomId;
         }
 
-        // 核销通行证（在完成最终握手后调用）
         public void ClearAuthorizedRoom()
         {
             AuthorizedRoomId = string.Empty;
@@ -64,6 +62,18 @@ namespace StellarNet.Lite.Server.Core
         {
             ConnectionId = -1;
             LastOfflineTime = DateTime.UtcNow;
+        }
+
+        // 架构说明：尝试消费传入的序列号。若序列号小于等于已记录的最大值，说明是重放包或乱序包，拒绝消费。
+        public bool TryConsumeSeq(uint seq)
+        {
+            if (seq <= LastReceivedSeq)
+            {
+                return false;
+            }
+
+            LastReceivedSeq = seq;
+            return true;
         }
     }
 }

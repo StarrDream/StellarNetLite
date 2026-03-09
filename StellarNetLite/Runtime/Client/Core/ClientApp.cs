@@ -20,6 +20,9 @@ namespace StellarNet.Lite.Client.Core
 
         private readonly Action<Packet> _networkSender;
 
+        // 核心新增：客户端全局自增序列号，用于防重放
+        private uint _sendSeq = 0;
+
         public ClientApp(Action<Packet> networkSender)
         {
             _networkSender = networkSender;
@@ -98,6 +101,8 @@ namespace StellarNet.Lite.Client.Core
 
         public void SendGlobal(Packet packet)
         {
+            _sendSeq++;
+            packet.Seq = _sendSeq;
             packet.Scope = NetScope.Global;
             packet.RoomId = string.Empty;
             _networkSender?.Invoke(packet);
@@ -117,6 +122,8 @@ namespace StellarNet.Lite.Client.Core
                 return;
             }
 
+            _sendSeq++;
+            packet.Seq = _sendSeq;
             packet.Scope = NetScope.Room;
             packet.RoomId = CurrentRoom.RoomId;
             _networkSender?.Invoke(packet);

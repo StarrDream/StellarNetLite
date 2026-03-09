@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using StellarNet.Lite.Shared.Core;
+using StellarNet.Lite.Shared.Protocol;
 using StellarNet.Lite.Client.Core;
 using StellarNet.Lite.GameDemo.Shared;
 
@@ -8,7 +9,6 @@ namespace StellarNet.Lite.GameDemo.Client
     /// <summary>
     /// 客户端胶囊对战业务组件 (Service层)。
     /// 职责：接收服务端的权威状态同步，进行基础的防空校验后，转化为纯值类型事件派发给表现层。
-    /// 架构说明：绝不在此处持有任何 GameObject 或 UI 引用，确保网络逻辑与表现逻辑的绝对物理隔离。
     /// </summary>
     public sealed class ClientDemoGameComponent : ClientRoomComponent
     {
@@ -73,12 +73,12 @@ namespace StellarNet.Lite.GameDemo.Client
                 return;
             }
 
-            LiteEventBus<DemoMoveEvent>.Fire(new DemoMoveEvent 
-            { 
-                SessionId = msg.SessionId, 
-                TargetX = msg.TargetX, 
-                TargetY = msg.TargetY, 
-                TargetZ = msg.TargetZ 
+            LiteEventBus<DemoMoveEvent>.Fire(new DemoMoveEvent
+            {
+                SessionId = msg.SessionId,
+                TargetX = msg.TargetX,
+                TargetY = msg.TargetY,
+                TargetZ = msg.TargetZ
             });
         }
 
@@ -91,15 +91,16 @@ namespace StellarNet.Lite.GameDemo.Client
                 return;
             }
 
-            LiteEventBus<DemoHpEvent>.Fire(new DemoHpEvent 
-            { 
-                SessionId = msg.SessionId, 
-                Hp = msg.Hp 
+            LiteEventBus<DemoHpEvent>.Fire(new DemoHpEvent
+            {
+                SessionId = msg.SessionId,
+                Hp = msg.Hp
             });
         }
 
+        // 核心修改：废弃 1008 协议，改为监听框架标准的 503 游戏结束协议
         [NetHandler]
-        public void OnS2C_DemoGameOver(S2C_DemoGameOver msg)
+        public void OnS2C_GameEnded(S2C_GameEnded msg)
         {
             if (msg == null)
             {

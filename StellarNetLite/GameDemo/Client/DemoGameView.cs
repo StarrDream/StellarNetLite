@@ -2,23 +2,18 @@
 using UnityEngine;
 using StellarNet.Lite.Shared.Core;
 using StellarNet.Lite.Client.Core;
+using StellarNet.Lite.Shared.Protocol;
 using StellarNet.Lite.Shared.Infrastructure;
 using StellarNet.Lite.GameDemo.Shared;
 
 namespace StellarNet.Lite.GameDemo.Client
 {
-    /// <summary>
-    /// 客户端胶囊对战表现层 (View层)。
-    /// 职责：监听 EventBus 驱动场景表现；捕获玩家输入并封装为网络请求发往服务端。
-    /// 架构说明：采用内部类 CapsuleViewData 聚合表现层状态，避免频繁的 GetComponent 调用，降低 CPU 消耗。
-    /// </summary>
     public class DemoGameView : MonoBehaviour
     {
         private StellarNetMirrorManager _manager;
         private Camera _mainCamera;
         private Plane _groundPlane = new Plane(Vector3.up, Vector3.zero);
 
-        // 内部聚合表现层数据，拒绝分散的组件挂载
         private class CapsuleViewData
         {
             public GameObject RootGo;
@@ -29,21 +24,12 @@ namespace StellarNet.Lite.GameDemo.Client
 
         private readonly Dictionary<string, CapsuleViewData> _views = new Dictionary<string, CapsuleViewData>();
         private string _winnerSessionId = string.Empty;
+        private float _autoLeaveTimer = -1f;
 
         private void Start()
         {
             _manager = FindObjectOfType<StellarNetMirrorManager>();
-            if (_manager == null)
-            {
-                Debug.LogError("[DemoGameView] 初始化失败：场景中缺失 StellarNetMirrorManager");
-                return;
-            }
-
             _mainCamera = Camera.main;
-            if (_mainCamera == null)
-            {
-                Debug.LogError("[DemoGameView] 初始化失败：场景中缺失 MainCamera");
-            }
         }
 
         private void OnEnable()
@@ -68,12 +54,40 @@ namespace StellarNet.Lite.GameDemo.Client
 
         private void Update()
         {
-            if (_manager == null || _manager.ClientApp == null || _manager.ClientApp.State != ClientAppState.OnlineRoom)
+            if (_manager == null || _manager.ClientApp == null) return;
+
+            var state = _manager.ClientApp.State;
+
+            // 核心修复：将 ReplayRoom (回放状态) 加入白名单，防止回放时胶囊体被误杀
+            if (state != ClientAppState.OnlineRoom && state != ClientAppState.ReplayRoom)
             {
+                if (_views.Count > 0 || !string.IsNullOrEmpty(_winnerSessionId))
+                {
+                    DestroyAllCapsules();
+                }
+
+                _autoLeaveTimer = -1f;
                 return;
             }
 
-            ProcessInput();
+            if (_autoLeaveTimer > 0 && state == ClientAppState.OnlineRoom)
+            {
+                _autoLeaveTimer -= Time.deltaTime;
+                if (_autoLeaveTimer <= 0)
+                {
+                    _autoLeaveTimer = -1f;
+                    Debug.Log("[DemoGameView] 倒计时结束，自动发送离开房间请求");
+                    var msg = new C2S_LeaveRoom();
+                    _manager.ClientApp.SendGlobal(new Packet(204, NetScope.Global, "", _manager.SerializeFunc(msg)));
+                }
+            }
+
+            // 核心修复：仅在真实的在线房间中才允许玩家输入，回放模式下纯观战
+            if (state == ClientAppState.OnlineRoom)
+            {
+                ProcessInput();
+            }
+
             InterpolateMovement();
         }
 
@@ -83,25 +97,25 @@ namespace StellarNet.Lite.GameDemo.Client
             {
                 GUI.color = Color.yellow;
                 GUI.skin.label.fontSize = 30;
-                GUI.Label(new Rect(Screen.width / 2 - 150, Screen.height / 2 - 50, 300, 100), $"游戏结束!\n胜利者: {_winnerSessionId}");
+
+                // 根据状态区分提示文本
+                string tips = _manager.ClientApp.State == ClientAppState.ReplayRoom
+                    ? "回放结束"
+                    : "即将自动离开房间...";
+
+                GUI.Label(new Rect(Screen.width / 2 - 200, Screen.height / 2 - 50, 400, 100), $"游戏结束!\n胜利者: {_winnerSessionId}\n{tips}");
                 GUI.skin.label.fontSize = 0;
                 GUI.color = Color.white;
             }
         }
 
-        #region ================= 输入与网络请求 =================
-
         private void ProcessInput()
         {
-            if (!string.IsNullOrEmpty(_winnerSessionId)) return; // 游戏结束后禁止输入
+            if (!string.IsNullOrEmpty(_winnerSessionId)) return;
 
             string mySessionId = _manager.ClientApp.Session.SessionId;
-            if (!_views.TryGetValue(mySessionId, out var myView) || myView.CurrentHp <= 0)
-            {
-                return; // 自身不存在或已死亡，禁止操作
-            }
+            if (!_views.TryGetValue(mySessionId, out var myView) || myView.CurrentHp <= 0) return;
 
-            // 右键移动 (基于射线检测地平面)
             if (Input.GetMouseButtonDown(1))
             {
                 Ray ray = _mainCamera.ScreenPointToRay(Input.mousePosition);
@@ -112,13 +126,11 @@ namespace StellarNet.Lite.GameDemo.Client
                 }
             }
 
-            // 左键攻击 (基于射线检测胶囊体)
             if (Input.GetMouseButtonDown(0))
             {
                 Ray ray = _mainCamera.ScreenPointToRay(Input.mousePosition);
                 if (Physics.Raycast(ray, out RaycastHit hit))
                 {
-                    // 利用 GameObject.name 存储 SessionId 的零 GC 寻址技巧
                     string targetSessionId = hit.collider.gameObject.name;
                     if (targetSessionId != mySessionId && _views.ContainsKey(targetSessionId))
                     {
@@ -144,10 +156,6 @@ namespace StellarNet.Lite.GameDemo.Client
             _manager.ClientApp.SendRoom(packet);
         }
 
-        #endregion
-
-        #region ================= 表现层插值与渲染 =================
-
         private void InterpolateMovement()
         {
             float deltaTime = Time.deltaTime;
@@ -156,7 +164,6 @@ namespace StellarNet.Lite.GameDemo.Client
                 var view = kvp.Value;
                 if (view.RootGo != null && view.CurrentHp > 0)
                 {
-                    // 简单的线性插值平滑移动，掩盖网络抖动
                     view.RootGo.transform.position = Vector3.Lerp(view.RootGo.transform.position, view.TargetPosition, deltaTime * 10f);
                 }
             }
@@ -168,11 +175,9 @@ namespace StellarNet.Lite.GameDemo.Client
 
             if (!_views.TryGetValue(info.SessionId, out var view))
             {
-                // 动态生成胶囊体，避免依赖外部 Prefab，保持 Demo 的独立性
                 GameObject go = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-                go.name = info.SessionId; // 核心技巧：利用 Name 绑定 SessionId 供射线检测使用
-                
-                // 动态生成血条文本
+                go.name = info.SessionId;
+
                 GameObject textGo = new GameObject("HpText");
                 textGo.transform.SetParent(go.transform);
                 textGo.transform.localPosition = new Vector3(0, 1.5f, 0);
@@ -182,7 +187,6 @@ namespace StellarNet.Lite.GameDemo.Client
                 tm.fontSize = 60;
                 tm.color = Color.red;
 
-                // 区分自己和其他玩家的颜色
                 var renderer = go.GetComponent<Renderer>();
                 if (_manager.ClientApp.Session.SessionId == info.SessionId)
                 {
@@ -198,7 +202,7 @@ namespace StellarNet.Lite.GameDemo.Client
             }
 
             view.TargetPosition = new Vector3(info.PosX, info.PosY, info.PosZ);
-            view.RootGo.transform.position = view.TargetPosition; // 初始强制同步位置
+            view.RootGo.transform.position = view.TargetPosition;
             UpdateHpDisplay(view, info.Hp);
         }
 
@@ -209,7 +213,6 @@ namespace StellarNet.Lite.GameDemo.Client
             {
                 view.HpText.text = "DEAD";
                 view.HpText.color = Color.gray;
-                // 死亡后放倒胶囊体作为表现
                 view.RootGo.transform.rotation = Quaternion.Euler(90, 0, 0);
                 view.RootGo.transform.position = new Vector3(view.TargetPosition.x, 0.5f, view.TargetPosition.z);
             }
@@ -228,31 +231,19 @@ namespace StellarNet.Lite.GameDemo.Client
                     Destroy(kvp.Value.RootGo);
                 }
             }
+
             _views.Clear();
             _winnerSessionId = string.Empty;
         }
-
-        #endregion
-
-        #region ================= 事件总线响应 =================
 
         private void HandleSnapshot(DemoSnapshotEvent evt)
         {
             DestroyAllCapsules();
             if (evt.Players == null) return;
-
-            for (int i = 0; i < evt.Players.Length; i++)
-            {
-                CreateOrUpdateCapsule(evt.Players[i]);
-            }
-            Debug.Log($"[DemoGameView] 收到全量快照，重建 {evt.Players.Length} 个实体");
+            for (int i = 0; i < evt.Players.Length; i++) CreateOrUpdateCapsule(evt.Players[i]);
         }
 
-        private void HandlePlayerJoined(DemoPlayerJoinedEvent evt)
-        {
-            CreateOrUpdateCapsule(evt.Player);
-            Debug.Log($"[DemoGameView] 玩家加入: {evt.Player?.SessionId}");
-        }
+        private void HandlePlayerJoined(DemoPlayerJoinedEvent evt) => CreateOrUpdateCapsule(evt.Player);
 
         private void HandlePlayerLeft(DemoPlayerLeftEvent evt)
         {
@@ -260,32 +251,25 @@ namespace StellarNet.Lite.GameDemo.Client
             {
                 if (view.RootGo != null) Destroy(view.RootGo);
                 _views.Remove(evt.SessionId);
-                Debug.Log($"[DemoGameView] 玩家离开，销毁实体: {evt.SessionId}");
             }
         }
 
         private void HandleMoveSync(DemoMoveEvent evt)
         {
             if (_views.TryGetValue(evt.SessionId, out var view))
-            {
                 view.TargetPosition = new Vector3(evt.TargetX, evt.TargetY, evt.TargetZ);
-            }
         }
 
         private void HandleHpSync(DemoHpEvent evt)
         {
             if (_views.TryGetValue(evt.SessionId, out var view))
-            {
                 UpdateHpDisplay(view, evt.Hp);
-            }
         }
 
         private void HandleGameOver(DemoGameOverEvent evt)
         {
             _winnerSessionId = evt.WinnerSessionId;
-            Debug.Log($"[DemoGameView] 接收到游戏结束事件，胜利者: {_winnerSessionId}");
+            _autoLeaveTimer = 3f;
         }
-
-        #endregion
     }
 }

@@ -6,8 +6,9 @@ namespace StellarNet.Lite.Shared.Protocol
     public sealed class C2S_CreateRoom
     {
         public string RoomName;
+
         public int[] ComponentIds;
-        public string RequestToken;
+        // 架构说明：底层网络已实现基于 Seq 的防重放机制，业务层不再需要手动传递 Token 保证幂等性。
     }
 
     [NetMsg(201, NetScope.Global, NetDir.S2C)]
@@ -45,7 +46,6 @@ namespace StellarNet.Lite.Shared.Protocol
         public bool Success;
     }
 
-    // 核心新增：显式就绪握手协议。彻底解耦“下发建房/加房结果”与“加入房间广播树”的时序强绑定。
     [NetMsg(206, NetScope.Global, NetDir.C2S)]
     public sealed class C2S_RoomSetupReady
     {

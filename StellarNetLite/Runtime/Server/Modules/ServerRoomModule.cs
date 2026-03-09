@@ -13,10 +13,6 @@ namespace StellarNet.Lite.Server.Modules
         private readonly Action<int, Packet> _networkSender;
         private readonly Func<object, byte[]> _serializeFunc;
 
-        private readonly Dictionary<string, S2C_CreateRoomResult> _idempotentCache = new Dictionary<string, S2C_CreateRoomResult>();
-        private readonly Queue<string> _idempotentQueue = new Queue<string>();
-        private const int MaxCacheSize = 10000;
-
         public ServerRoomModule(ServerApp app, Action<int, Packet> networkSender, Func<object, byte[]> serializeFunc)
         {
             _app = app;
@@ -27,22 +23,9 @@ namespace StellarNet.Lite.Server.Modules
         [NetHandler]
         public void OnC2S_CreateRoom(Session session, C2S_CreateRoom msg)
         {
+            // 架构说明：得益于底层 ServerApp 的 Seq 拦截，此处收到的请求必定是合法的、非重放的新请求。
+            // 彻底移除了原先臃肿的 _idempotentCache 字典与 Token 校验逻辑。
             if (session == null || msg == null) return;
-
-            if (string.IsNullOrEmpty(msg.RequestToken))
-            {
-                Debug.LogError($"[ServerRoomModule] 建房阻断: RequestToken 为空, SessionId: {session.SessionId}");
-                var failMsg = new S2C_CreateRoomResult { Success = false, Reason = "非法请求令牌" };
-                SendGlobal(session, 201, failMsg);
-                return;
-            }
-
-            if (_idempotentCache.TryGetValue(msg.RequestToken, out var cachedRes))
-            {
-                Debug.LogWarning($"[ServerRoomModule] 触发幂等拦截: Token {msg.RequestToken}，直接返回缓存结果");
-                SendGlobal(session, 201, cachedRes);
-                return;
-            }
 
             if (!string.IsNullOrEmpty(session.CurrentRoomId))
             {
@@ -60,15 +43,15 @@ namespace StellarNet.Lite.Server.Modules
                 return;
             }
 
-            int[] uniqueComponentIds = DeduplicateComponentIds(msg.ComponentIds);
+            room.RoomName = string.IsNullOrEmpty(msg.RoomName) ? $"房间_{roomId}" : msg.RoomName;
 
-            // 核心修复 2：强阻断装配。如果装配失败，立即销毁刚创建的房间，并返回失败结果
+            int[] uniqueComponentIds = DeduplicateComponentIds(msg.ComponentIds);
             bool buildSuccess = ServerRoomFactory.BuildComponents(room, uniqueComponentIds);
+
             if (!buildSuccess)
             {
                 _app.DestroyRoom(roomId);
                 Debug.LogError($"[ServerRoomModule] 房间 {roomId} 组件装配失败，已强制销毁该残缺实例");
-
                 var failMsg = new S2C_CreateRoomResult { Success = false, Reason = "房间组件装配失败，存在非法组件" };
                 SendGlobal(session, 201, failMsg);
                 return;
@@ -83,15 +66,6 @@ namespace StellarNet.Lite.Server.Modules
                 ComponentIds = uniqueComponentIds,
                 Reason = string.Empty
             };
-
-            if (_idempotentQueue.Count >= MaxCacheSize)
-            {
-                string oldToken = _idempotentQueue.Dequeue();
-                _idempotentCache.Remove(oldToken);
-            }
-
-            _idempotentCache[msg.RequestToken] = successMsg;
-            _idempotentQueue.Enqueue(msg.RequestToken);
 
             session.AuthorizeRoom(roomId);
             SendGlobal(session, 201, successMsg);
@@ -160,7 +134,6 @@ namespace StellarNet.Lite.Server.Modules
             }
 
             room.AddMember(session);
-
             session.ClearAuthorizedRoom();
             Debug.Log($"[ServerRoomModule] 客户端 {session.SessionId} 首次装配就绪，正式加入房间 {msg.RoomId} 并下发快照");
         }
@@ -177,7 +150,6 @@ namespace StellarNet.Lite.Server.Modules
             if (room != null)
             {
                 room.RemoveMember(session);
-
                 if (room.MemberCount == 0)
                 {
                     _app.DestroyRoom(roomId);
@@ -208,7 +180,8 @@ namespace StellarNet.Lite.Server.Modules
         private void SendGlobal(Session session, int msgId, object msgObj)
         {
             byte[] payload = _serializeFunc(msgObj);
-            var packet = new Packet(msgId, NetScope.Global, string.Empty, payload);
+            // 架构说明：服务端下发给客户端的包，Seq 保持默认 0 即可，客户端目前主要依靠服务端的权威状态进行覆盖，不需要防重放。
+            var packet = new Packet(0, msgId, NetScope.Global, string.Empty, payload);
             _networkSender.Invoke(session.ConnectionId, packet);
         }
     }

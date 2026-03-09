@@ -69,11 +69,7 @@ namespace StellarNet.Lite.GameDemo.Shared
         public int Hp;
     }
 
-    [NetMsg(1008, NetScope.Room, NetDir.S2C)]
-    public sealed class S2C_DemoGameOver
-    {
-        public string WinnerSessionId;
-    }
+    // 核心修复：彻底移除已废弃的 1008 (S2C_DemoGameOver) 协议，避免代码残留
 
     #endregion
 
@@ -108,6 +104,7 @@ namespace StellarNet.Lite.GameDemo.Shared
         public int Hp;
     }
 
+    // 注意：内部事件总线使用的 Event 必须保留，因为 ClientDemoGameComponent 监听到基础 503 协议后，仍需要将其转化为该事件通知表现层
     public struct DemoGameOverEvent : IRoomEvent
     {
         public string WinnerSessionId;

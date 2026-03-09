@@ -17,13 +17,15 @@ namespace StellarNet.Lite.Server.Core
                 return;
             }
 
-            if (_handlers.ContainsKey(msgId))
+            // 核心架构升级：支持多播委托
+            if (_handlers.TryGetValue(msgId, out var existingHandler))
             {
-                Debug.LogError($"[GlobalDispatcher] 注册失败: MsgId {msgId} 已存在处理函数，禁止重复注册");
-                return;
+                _handlers[msgId] = existingHandler + handler;
             }
-
-            _handlers[msgId] = handler;
+            else
+            {
+                _handlers[msgId] = handler;
+            }
         }
 
         public void Dispatch(Session session, Packet packet)
@@ -34,13 +36,14 @@ namespace StellarNet.Lite.Server.Core
                 return;
             }
 
-            if (!_handlers.TryGetValue(packet.MsgId, out var handler))
+            if (_handlers.TryGetValue(packet.MsgId, out var handler))
             {
-                Debug.LogError($"[GlobalDispatcher] 分发失败: 未找到 MsgId {packet.MsgId} 的处理函数");
-                return;
+                handler?.Invoke(session, packet);
             }
-
-            handler.Invoke(session, packet);
+            else
+            {
+                Debug.LogWarning($"[GlobalDispatcher] 未找到 MsgId {packet.MsgId} 的处理函数");
+            }
         }
     }
 
@@ -62,13 +65,15 @@ namespace StellarNet.Lite.Server.Core
                 return;
             }
 
-            if (_handlers.ContainsKey(msgId))
+            // 核心架构升级：支持多播委托
+            if (_handlers.TryGetValue(msgId, out var existingHandler))
             {
-                Debug.LogError($"[RoomDispatcher] 注册失败: MsgId {msgId} 在房间 {_roomId} 中已存在处理函数");
-                return;
+                _handlers[msgId] = existingHandler + handler;
             }
-
-            _handlers[msgId] = handler;
+            else
+            {
+                _handlers[msgId] = handler;
+            }
         }
 
         public void Dispatch(Session session, Packet packet)
@@ -79,13 +84,14 @@ namespace StellarNet.Lite.Server.Core
                 return;
             }
 
-            if (!_handlers.TryGetValue(packet.MsgId, out var handler))
+            if (_handlers.TryGetValue(packet.MsgId, out var handler))
             {
-                Debug.LogError($"[RoomDispatcher] 分发失败: 未找到 MsgId {packet.MsgId} 的处理函数，RoomId: {_roomId}");
-                return;
+                handler?.Invoke(session, packet);
             }
-
-            handler.Invoke(session, packet);
+            else
+            {
+                Debug.LogWarning($"[RoomDispatcher] 未找到 MsgId {packet.MsgId} 的处理函数，RoomId: {_roomId}");
+            }
         }
 
         public void Clear()

@@ -9,8 +9,6 @@ namespace StellarNet.Lite.Shared.Infrastructure
     public interface INetSerializer
     {
         byte[] Serialize(object obj);
-
-        // 核心修复 2：废弃 DeserializeInto，改为返回全新实例的 Deserialize
         object Deserialize(byte[] data, Type type);
     }
 
@@ -53,7 +51,6 @@ namespace StellarNet.Lite.Shared.Infrastructure
             try
             {
                 string json = System.Text.Encoding.UTF8.GetString(data);
-                // 核心机制：每次都反序列化为全新的对象，保证状态绝对纯净
                 return JsonConvert.DeserializeObject(json, type);
             }
             catch (Exception e)
@@ -66,6 +63,8 @@ namespace StellarNet.Lite.Shared.Infrastructure
 
     public struct MirrorPacketMsg : NetworkMessage
     {
+        // 核心新增：同步传输 Seq
+        public uint Seq;
         public int MsgId;
         public byte Scope;
         public string RoomId;
@@ -73,6 +72,7 @@ namespace StellarNet.Lite.Shared.Infrastructure
 
         public MirrorPacketMsg(Packet packet)
         {
+            Seq = packet.Seq;
             MsgId = packet.MsgId;
             Scope = (byte)packet.Scope;
             RoomId = packet.RoomId ?? string.Empty;
@@ -81,7 +81,7 @@ namespace StellarNet.Lite.Shared.Infrastructure
 
         public Packet ToPacket()
         {
-            return new Packet(MsgId, (NetScope)Scope, RoomId, Payload);
+            return new Packet(Seq, MsgId, (NetScope)Scope, RoomId, Payload);
         }
     }
 }

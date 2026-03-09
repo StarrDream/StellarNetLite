@@ -1,38 +1,55 @@
 ﻿using System;
 using System.Collections.Generic;
 using StellarNet.Lite.Shared.Core;
+using StellarNet.Lite.Shared.Infrastructure;
+using StellarNet.Lite.Server.Infrastructure;
 using UnityEngine;
 
 namespace StellarNet.Lite.Server.Core
 {
+    public enum RoomState
+    {
+        Waiting,
+        Playing,
+        Finished
+    }
+
     public sealed class Room
     {
         public string RoomId { get; }
-        public RoomDispatcher Dispatcher { get; }
-        public bool IsRecording { get; private set; }
 
+        // 核心新增：预留房间名称字段，供大厅列表展示
+        public string RoomName { get; set; }
+        public RoomDispatcher Dispatcher { get; }
+
+        public bool IsRecording { get; private set; }
         public int CurrentTick { get; private set; }
         public DateTime CreateTime { get; }
         public DateTime EmptySince { get; private set; }
-
         public int[] ComponentIds { get; private set; }
         public int MemberCount => _members.Count;
+        public RoomState State { get; private set; } = RoomState.Waiting;
+        public ReplayFile LastReplay { get; private set; }
 
         private readonly Dictionary<string, Session> _members = new Dictionary<string, Session>();
         private readonly List<RoomComponent> _components = new List<RoomComponent>();
         private readonly List<ReplayFrame> _recorder = new List<ReplayFrame>();
         private readonly Action<int, Packet> _sendToConnection;
-
         private const int MaxReplayFrames = 108000;
+
+        // 核心新增：结算后的僵尸房间销毁倒计时
+        private int _finishedTickCount = 0;
 
         public Room(string roomId, Action<int, Packet> sendToConnection)
         {
             RoomId = roomId;
+            RoomName = "未命名房间"; // 默认名称
             Dispatcher = new RoomDispatcher(roomId);
             _sendToConnection = sendToConnection;
             CreateTime = DateTime.UtcNow;
             EmptySince = DateTime.UtcNow;
             CurrentTick = 0;
+            State = RoomState.Waiting;
         }
 
         public void SetComponentIds(int[] ids)
@@ -43,12 +60,7 @@ namespace StellarNet.Lite.Server.Core
 
         public void AddComponent(RoomComponent component)
         {
-            if (component == null)
-            {
-                Debug.LogError($"[Room] 添加组件失败: component 为空，RoomId: {RoomId}");
-                return;
-            }
-
+            if (component == null) return;
             component.Room = this;
             _components.Add(component);
             component.OnInit();
@@ -56,15 +68,12 @@ namespace StellarNet.Lite.Server.Core
 
         public void AddMember(Session session)
         {
-            if (session == null)
-            {
-                Debug.LogError($"[Room] 添加成员失败: session 为空，RoomId: {RoomId}");
-                return;
-            }
+            if (session == null || _members.ContainsKey(session.SessionId)) return;
 
-            if (_members.ContainsKey(session.SessionId))
+            // 核心防御：拒绝加入已结束的房间
+            if (State == RoomState.Finished)
             {
-                Debug.LogError($"[Room] 添加成员失败: SessionId {session.SessionId} 已在房间中，RoomId: {RoomId}");
+                Debug.LogWarning($"[Room] 拦截加入: 房间 {RoomId} 已结束，拒绝玩家 {session.SessionId} 加入");
                 return;
             }
 
@@ -80,10 +89,7 @@ namespace StellarNet.Lite.Server.Core
 
         public void RemoveMember(Session session)
         {
-            if (session == null || !_members.ContainsKey(session.SessionId))
-            {
-                return;
-            }
+            if (session == null || !_members.ContainsKey(session.SessionId)) return;
 
             for (int i = 0; i < _components.Count; i++)
             {
@@ -99,7 +105,6 @@ namespace StellarNet.Lite.Server.Core
             }
         }
 
-        // 核心新增：提供给组件层的安全查询接口，用于遍历寻找在线玩家
         public Session GetMember(string sessionId)
         {
             if (string.IsNullOrEmpty(sessionId)) return null;
@@ -107,20 +112,28 @@ namespace StellarNet.Lite.Server.Core
             return session;
         }
 
-        // 核心新增：分发成员离线事件
         public void NotifyMemberOffline(Session session)
         {
             if (session == null || !_members.ContainsKey(session.SessionId)) return;
+
             for (int i = 0; i < _components.Count; i++)
             {
                 _components[i].OnMemberOffline(session);
             }
         }
 
-        // 核心新增：分发成员上线事件
         public void NotifyMemberOnline(Session session)
         {
             if (session == null || !_members.ContainsKey(session.SessionId)) return;
+
+            // 核心防御：如果玩家断网重连时，房间已经处于结算结束状态，直接将其踢出房间，强制回大厅
+            if (State == RoomState.Finished)
+            {
+                Debug.LogWarning($"[Room] 拦截重连: 房间 {RoomId} 已结束，强制将重连玩家 {session.SessionId} 移出房间");
+                RemoveMember(session);
+                return;
+            }
+
             for (int i = 0; i < _components.Count; i++)
             {
                 _components[i].OnMemberOnline(session);
@@ -129,15 +142,43 @@ namespace StellarNet.Lite.Server.Core
 
         public void TriggerReconnectSnapshot(Session session)
         {
-            if (session == null || !_members.ContainsKey(session.SessionId))
-            {
-                Debug.LogError($"[Room] 触发重连快照失败: 目标 session 不在当前房间中，RoomId: {RoomId}");
-                return;
-            }
+            if (session == null || !_members.ContainsKey(session.SessionId)) return;
 
             for (int i = 0; i < _components.Count; i++)
             {
                 _components[i].OnSendSnapshot(session);
+            }
+        }
+
+        public void StartGame()
+        {
+            if (State != RoomState.Waiting) return;
+            State = RoomState.Playing;
+            LastReplay = null;
+            StartRecord();
+
+            for (int i = 0; i < _components.Count; i++)
+            {
+                _components[i].OnGameStart();
+            }
+        }
+
+        public void EndGame()
+        {
+            if (State != RoomState.Playing) return;
+            State = RoomState.Finished;
+            _finishedTickCount = 0; // 启动销毁倒计时
+
+            if (IsRecording)
+            {
+                LastReplay = StopRecordAndSave();
+                // 核心修复：将内存中的录像持久化到物理磁盘，并传入默认网络配置以触发滚动清理机制
+                ServerReplayStorage.SaveReplay(LastReplay, new NetConfig());
+            }
+
+            for (int i = 0; i < _components.Count; i++)
+            {
+                _components[i].OnGameEnd();
             }
         }
 
@@ -162,7 +203,6 @@ namespace StellarNet.Lite.Server.Core
                 }
                 else
                 {
-                    Debug.LogError($"[Room] 录制阻断: 房间 {RoomId} 录制帧数达到上限 {MaxReplayFrames}，已强制终止录制防止 OOM");
                     IsRecording = false;
                 }
             }
@@ -179,17 +219,7 @@ namespace StellarNet.Lite.Server.Core
 
         public void SendTo(Session session, Packet packet)
         {
-            if (session == null)
-            {
-                Debug.LogError($"[Room] 单播失败: session 为空，RoomId: {RoomId}");
-                return;
-            }
-
-            if (!session.IsOnline)
-            {
-                return;
-            }
-
+            if (session == null || !session.IsOnline) return;
             _sendToConnection?.Invoke(session.ConnectionId, packet);
         }
 
@@ -216,6 +246,21 @@ namespace StellarNet.Lite.Server.Core
         public void Tick()
         {
             CurrentTick++;
+
+            // 核心防御：僵尸房间强制清理机制。结算后 10 秒（假设 30 Tick/s，约 300 Tick），强制踢出所有残留玩家，触发空房间销毁
+            if (State == RoomState.Finished)
+            {
+                _finishedTickCount++;
+                if (_finishedTickCount > 300 && _members.Count > 0)
+                {
+                    Debug.LogWarning($"[Room] 僵尸清理: 房间 {RoomId} 结算已超时，强制清空残留的 {_members.Count} 名玩家");
+                    var sessionsToKick = new List<Session>(_members.Values);
+                    foreach (var s in sessionsToKick)
+                    {
+                        RemoveMember(s);
+                    }
+                }
+            }
         }
 
         public void Destroy()
@@ -233,7 +278,6 @@ namespace StellarNet.Lite.Server.Core
             }
 
             _members.Clear();
-
             Dispatcher.Clear();
         }
     }

@@ -17,24 +17,27 @@ namespace StellarNet.Lite.Client.Core
                 return;
             }
 
-            if (_handlers.ContainsKey(msgId))
+            // 核心架构升级：支持多播委托。允许多个独立模块监听同一个全局协议
+            if (_handlers.TryGetValue(msgId, out var existingHandler))
             {
-                Debug.LogError($"[ClientGlobalDispatcher] 注册失败: MsgId {msgId} 已存在处理函数，禁止重复注册");
-                return;
+                _handlers[msgId] = existingHandler + handler;
             }
-
-            _handlers[msgId] = handler;
+            else
+            {
+                _handlers[msgId] = handler;
+            }
         }
 
         public void Dispatch(Packet packet)
         {
-            if (!_handlers.TryGetValue(packet.MsgId, out var handler))
+            if (_handlers.TryGetValue(packet.MsgId, out var handler))
+            {
+                handler?.Invoke(packet);
+            }
+            else
             {
                 Debug.LogWarning($"[ClientGlobalDispatcher] 未找到 MsgId {packet.MsgId} 的处理函数，消息已忽略");
-                return;
             }
-
-            handler.Invoke(packet);
         }
     }
 
@@ -56,24 +59,27 @@ namespace StellarNet.Lite.Client.Core
                 return;
             }
 
-            if (_handlers.ContainsKey(msgId))
+            // 核心架构升级：支持多播委托。允许多个 RoomComponent 监听同一个房间协议
+            if (_handlers.TryGetValue(msgId, out var existingHandler))
             {
-                Debug.LogError($"[ClientRoomDispatcher] 注册失败: MsgId {msgId} 在房间 {_roomId} 中已存在处理函数");
-                return;
+                _handlers[msgId] = existingHandler + handler;
             }
-
-            _handlers[msgId] = handler;
+            else
+            {
+                _handlers[msgId] = handler;
+            }
         }
 
         public void Dispatch(Packet packet)
         {
-            if (!_handlers.TryGetValue(packet.MsgId, out var handler))
+            if (_handlers.TryGetValue(packet.MsgId, out var handler))
+            {
+                handler?.Invoke(packet);
+            }
+            else
             {
                 Debug.LogWarning($"[ClientRoomDispatcher] 未找到 MsgId {packet.MsgId} 的处理函数，RoomId: {_roomId}，消息已忽略");
-                return;
             }
-
-            handler.Invoke(packet);
         }
 
         public void Clear()

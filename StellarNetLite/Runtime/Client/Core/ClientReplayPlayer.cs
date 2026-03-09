@@ -4,13 +4,23 @@ using UnityEngine;
 
 namespace StellarNet.Lite.Client.Core
 {
+    /// <summary>
+    /// 客户端回放播放器 (沙盒时间轴控制器)
+    /// 职责：接管回放房间的时间轴，支持自动播放、倍速、暂停以及基于状态重建的任意 Tick 跳转。
+    /// </summary>
     public sealed class ClientReplayPlayer
     {
         private readonly ClientApp _app;
         private ReplayFile _currentFile;
-        private int _currentTick;
+
+        public int CurrentTick { get; private set; }
+        public float PlaybackSpeed { get; set; } = 1f;
+        public bool IsPaused { get; set; } = false;
+
         private int _frameIndex;
         private bool _isPlaying;
+        private float _tickAccumulator;
+        private const float TickInterval = 1f / 60f; // 严格对齐服务端的 60 TickRate
 
         public ClientReplayPlayer(ClientApp app)
         {
@@ -32,59 +42,110 @@ namespace StellarNet.Lite.Client.Core
             }
 
             _currentFile = file;
-            _currentTick = 0;
-            _frameIndex = 0;
             _isPlaying = true;
+            IsPaused = false;
+            PlaybackSpeed = 1f;
+            _tickAccumulator = 0f;
 
-            _app.EnterReplayRoom(file.RoomId);
+            RestartSandbox();
 
-            bool buildSuccess = ClientRoomFactory.BuildComponents(_app.CurrentRoom, file.ComponentIds);
-            if (!buildSuccess)
-            {
-                // 核心防御：回放文件中的组件在当前客户端版本不存在时，强行播放会导致严重报错，必须阻断
-                Debug.LogError($"[ClientReplayPlayer] 回放房间 {file.RoomId} 本地装配失败，存在缺失组件，已强制终止回放");
-                StopReplay();
-                return;
-            }
-
-            Debug.Log($"[ClientReplayPlayer] 回放启动: 房间 {file.RoomId}, 总帧数 {file.Frames.Count}");
+            Debug.Log($"[ClientReplayPlayer] 回放启动: 房间 {file.RoomId}, 总帧数 {file.Frames.Count}, 总 Tick {GetTotalTicks()}");
         }
 
         public void StopReplay()
         {
             if (!_isPlaying) return;
-
             _isPlaying = false;
             _currentFile = null;
             _app.LeaveRoom();
             Debug.Log("[ClientReplayPlayer] 回放结束，已清理沙盒");
         }
 
-        public void Tick()
+        public void Update(float deltaTime)
         {
-            if (!_isPlaying || _currentFile == null || _app.CurrentRoom == null) return;
+            if (!_isPlaying || IsPaused || _currentFile == null) return;
+
+            _tickAccumulator += deltaTime * PlaybackSpeed;
+
+            // 追帧逻辑：根据倍速与 deltaTime 消耗累加器
+            while (_tickAccumulator >= TickInterval)
+            {
+                _tickAccumulator -= TickInterval;
+                ProcessNextTick();
+
+                if (CurrentTick > GetTotalTicks())
+                {
+                    IsPaused = true;
+                    Debug.Log("[ClientReplayPlayer] 回放播放完毕，已自动暂停");
+                    break;
+                }
+            }
+        }
+
+        public void Seek(int targetTick)
+        {
+            if (!_isPlaying || _currentFile == null) return;
+
+            targetTick = Mathf.Clamp(targetTick, 0, GetTotalTicks());
+
+            // 核心架构：由于是事件同步，时间轴倒退必须通过“销毁重建 + 极速快进”来实现状态的绝对纯净
+            if (targetTick < CurrentTick)
+            {
+                RestartSandbox();
+            }
+
+            // 极速快进到目标 Tick (纯逻辑派发，不渲染)
+            while (CurrentTick < targetTick)
+            {
+                ProcessNextTick();
+            }
+        }
+
+        public int GetTotalTicks()
+        {
+            if (_currentFile == null || _currentFile.Frames == null || _currentFile.Frames.Count == 0) return 0;
+            return _currentFile.Frames[_currentFile.Frames.Count - 1].Tick;
+        }
+
+        private void RestartSandbox()
+        {
+            if (_app.State == ClientAppState.ReplayRoom)
+            {
+                _app.LeaveRoom();
+            }
+
+            _app.EnterReplayRoom(_currentFile.RoomId);
+            bool buildSuccess = ClientRoomFactory.BuildComponents(_app.CurrentRoom, _currentFile.ComponentIds);
+            if (!buildSuccess)
+            {
+                Debug.LogError($"[ClientReplayPlayer] 回放房间 {_currentFile.RoomId} 本地装配失败，强制终止回放");
+                StopReplay();
+                return;
+            }
+
+            CurrentTick = 0;
+            _frameIndex = 0;
+            _tickAccumulator = 0f;
+        }
+
+        private void ProcessNextTick()
+        {
+            if (_currentFile == null || _app.CurrentRoom == null) return;
 
             while (_frameIndex < _currentFile.Frames.Count)
             {
                 var frame = _currentFile.Frames[_frameIndex];
-                if (frame.Tick > _currentTick)
+                if (frame.Tick > CurrentTick)
                 {
                     break;
                 }
 
                 var packet = new Packet(frame.MsgId, NetScope.Room, frame.RoomId, frame.Payload);
                 _app.CurrentRoom.Dispatcher.Dispatch(packet);
-
                 _frameIndex++;
             }
 
-            _currentTick++;
-
-            if (_frameIndex >= _currentFile.Frames.Count)
-            {
-                Debug.Log("[ClientReplayPlayer] 回放播放完毕");
-                StopReplay();
-            }
+            CurrentTick++;
         }
     }
 }

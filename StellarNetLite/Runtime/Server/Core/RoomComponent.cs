@@ -20,17 +20,23 @@
         {
         }
 
-        // 核心新增：物理连接断开时的生命周期钩子（用于处理房主掉线移交等逻辑）
         public virtual void OnMemberOffline(Session session)
         {
         }
 
-        // 核心新增：物理连接恢复时的生命周期钩子
         public virtual void OnMemberOnline(Session session)
         {
         }
 
         public virtual void OnSendSnapshot(Session session)
+        {
+        }
+        
+        public virtual void OnGameStart()
+        {
+        }
+
+        public virtual void OnGameEnd()
         {
         }
     }

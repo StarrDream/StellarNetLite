@@ -27,4 +27,17 @@ namespace StellarNet.Lite.Shared.Protocol
         public string ReplayFileData;
         public string Reason;
     }
+
+    // 核心新增：客户端表现层使用的纯值类型事件
+    public struct ReplayListEvent : IRoomEvent
+    {
+        public string[] ReplayIds;
+    }
+
+    public struct ReplayDownloadedEvent : IRoomEvent
+    {
+        public bool Success;
+        public ReplayFile File;
+        public string Reason;
+    }
 }

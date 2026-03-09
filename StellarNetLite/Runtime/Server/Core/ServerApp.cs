@@ -104,6 +104,14 @@ namespace StellarNet.Lite.Server.Core
                 Debug.Log($"[ServerApp] 接收到新连接，已分配匿名会话: {session.SessionId}");
             }
 
+            // 架构说明：在路由分发前进行全局防重放拦截。
+            // 客户端发出的 Seq 必定大于 0。若消费失败，说明是重复点击导致的重放包，直接丢弃，保护状态机纯净。
+            if (packet.Seq > 0 && !session.TryConsumeSeq(packet.Seq))
+            {
+                Debug.LogWarning($"[ServerApp] 防重放拦截: 丢弃重复包 MsgId {packet.MsgId}, Seq {packet.Seq}, 当前记录 Seq {session.LastReceivedSeq}");
+                return;
+            }
+
             if (packet.Scope == NetScope.Global)
             {
                 GlobalDispatcher.Dispatch(session, packet);
@@ -192,13 +200,11 @@ namespace StellarNet.Lite.Server.Core
             }
 
             session.UpdateConnection(connectionId);
-
             if (connectionId >= 0)
             {
                 _connectionToSession[connectionId] = session;
             }
 
-            // 核心修复：重连/顶号成功后，通知所在房间该玩家已上线
             if (!string.IsNullOrEmpty(session.CurrentRoomId))
             {
                 GetRoom(session.CurrentRoomId)?.NotifyMemberOnline(session);
@@ -213,7 +219,6 @@ namespace StellarNet.Lite.Server.Core
                 _connectionToSession.Remove(session.ConnectionId);
                 session.MarkOffline();
 
-                // 核心修复：物理断开时，通知所在房间该玩家已离线
                 if (!string.IsNullOrEmpty(session.CurrentRoomId))
                 {
                     GetRoom(session.CurrentRoomId)?.NotifyMemberOffline(session);
