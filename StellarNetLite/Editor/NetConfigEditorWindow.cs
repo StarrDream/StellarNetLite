@@ -16,7 +16,7 @@ namespace StellarNet.Lite.Editor
         public static void ShowWindow()
         {
             var window = GetWindow<NetConfigEditorWindow>("NetConfig Editor");
-            window.minSize = new Vector2(400, 420);
+            window.minSize = new Vector2(400, 450);
             window.Show();
         }
 
@@ -41,7 +41,6 @@ namespace StellarNet.Lite.Editor
 
             GUILayout.Space(10);
             EditorGUILayout.BeginVertical("box");
-
             _currentConfig.Ip = EditorGUILayout.TextField("服务器 IP:", _currentConfig.Ip);
             int port = EditorGUILayout.IntField("端口 (Port):", _currentConfig.Port);
             _currentConfig.Port = (ushort)Mathf.Clamp(port, 0, 65535);
@@ -50,14 +49,19 @@ namespace StellarNet.Lite.Editor
 
             GUILayout.Space(5);
             EditorGUILayout.LabelField("生产环境防御配置 (GC & 熔断)", EditorStyles.boldLabel);
-            _currentConfig.MaxRoomLifetimeHours = EditorGUILayout.IntField("房间最大存活(小时):", _currentConfig.MaxRoomLifetimeHours);
+            _currentConfig.MaxRoomLifetimeHours =
+                EditorGUILayout.IntField("房间最大存活(小时):", _currentConfig.MaxRoomLifetimeHours);
             _currentConfig.MaxReplayFiles = EditorGUILayout.IntField("最大录像保留数:", _currentConfig.MaxReplayFiles);
+            _currentConfig.OfflineTimeoutLobbyMinutes =
+                EditorGUILayout.IntField("大厅离线GC(分钟):", _currentConfig.OfflineTimeoutLobbyMinutes);
+            _currentConfig.OfflineTimeoutRoomMinutes =
+                EditorGUILayout.IntField("房间离线GC(分钟):", _currentConfig.OfflineTimeoutRoomMinutes);
+            _currentConfig.EmptyRoomTimeoutMinutes =
+                EditorGUILayout.IntField("空房间熔断(分钟):", _currentConfig.EmptyRoomTimeoutMinutes);
 
-            _currentConfig.OfflineTimeoutLobbyMinutes = EditorGUILayout.IntField("大厅离线GC(分钟):", _currentConfig.OfflineTimeoutLobbyMinutes);
-            _currentConfig.OfflineTimeoutRoomMinutes = EditorGUILayout.IntField("房间离线GC(分钟):", _currentConfig.OfflineTimeoutRoomMinutes);
-
-            // 核心新增：暴露空房间防暴毙配置
-            _currentConfig.EmptyRoomTimeoutMinutes = EditorGUILayout.IntField("空房间熔断(分钟):", _currentConfig.EmptyRoomTimeoutMinutes);
+            GUILayout.Space(5);
+            EditorGUILayout.LabelField("版本控制策略", EditorStyles.boldLabel);
+            _currentConfig.MinClientVersion = EditorGUILayout.TextField("最低客户端版本:", _currentConfig.MinClientVersion);
 
             EditorGUILayout.EndVertical();
 
@@ -89,6 +93,7 @@ namespace StellarNet.Lite.Editor
             string basePath = _targetRoot == ConfigRootPath.StreamingAssets
                 ? Application.streamingAssetsPath
                 : Application.persistentDataPath;
+
             string folderPath = Path.Combine(basePath, NetConfigLoader.ConfigFolderName).Replace("\\", "/");
             string fullPath = Path.Combine(folderPath, NetConfigLoader.ConfigFileName).Replace("\\", "/");
 
@@ -115,6 +120,7 @@ namespace StellarNet.Lite.Editor
             string basePath = _targetRoot == ConfigRootPath.StreamingAssets
                 ? Application.streamingAssetsPath
                 : Application.persistentDataPath;
+
             string folderPath = Path.Combine(basePath, NetConfigLoader.ConfigFolderName).Replace("\\", "/");
 
             if (!Directory.Exists(folderPath))

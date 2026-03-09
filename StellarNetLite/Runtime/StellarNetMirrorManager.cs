@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Reflection;
 using UnityEngine;
 using Mirror;
 using StellarNet.Lite.Shared.Core;
@@ -30,12 +29,14 @@ namespace StellarNet.Lite.Shared.Infrastructure
         public override void Awake()
         {
             base.Awake();
+
             var serializer = new JsonNetSerializer();
             SerializeFunc = serializer.Serialize;
             DeserializeFunc = serializer.Deserialize;
-            _netConfig = new NetConfig();
 
-            // 核心新增：在网络管理器启动时，初始化协议元数据映射器，为后续的强类型发包提供支撑
+            _netConfig = NetConfigLoader.LoadServerConfigSync(ConfigRootPath.PersistentDataPath);
+            this.maxConnections = _netConfig.MaxConnections;
+
             NetMessageMapper.Initialize();
 
             if (!_factoriesRegistered)
@@ -58,7 +59,6 @@ namespace StellarNet.Lite.Shared.Infrastructure
         {
             ServerRoomFactory.Register(1, () => new ServerRoomSettingsComponent(SerializeFunc));
             ServerRoomFactory.Register(100, () => new ServerDemoGameComponent(SerializeFunc));
-
             ServerRoomFactory.ComponentBinder = (comp, dispatcher) =>
                 AutoBinder.BindServerComponent(comp, dispatcher, DeserializeFunc);
         }
@@ -67,7 +67,6 @@ namespace StellarNet.Lite.Shared.Infrastructure
         {
             ClientRoomFactory.Register(1, () => new ClientRoomSettingsComponent());
             ClientRoomFactory.Register(100, () => new ClientDemoGameComponent());
-
             ClientRoomFactory.ComponentBinder = (comp, dispatcher) =>
                 AutoBinder.BindClientComponent(comp, dispatcher, DeserializeFunc);
         }
@@ -76,10 +75,12 @@ namespace StellarNet.Lite.Shared.Infrastructure
         {
             base.OnStartServer();
 
-            // 核心修复：将 SerializeFunc 注入 ServerApp，支撑统一的强类型发包器
+            NetworkServer.tickRate = _netConfig.TickRate;
+
             ServerApp = new ServerApp(MirrorServerSend, SerializeFunc);
 
-            var userModule = new ServerUserModule(ServerApp, MirrorServerSend, SerializeFunc);
+            // 核心修复：将 _netConfig 注入 ServerUserModule 以支撑版本校验
+            var userModule = new ServerUserModule(ServerApp, MirrorServerSend, SerializeFunc, _netConfig);
             var roomModule = new ServerRoomModule(ServerApp, MirrorServerSend, SerializeFunc);
             var lobbyModule = new ServerLobbyModule(ServerApp, MirrorServerSend, SerializeFunc);
             var replayModule = new ServerReplayModule(ServerApp, MirrorServerSend, SerializeFunc);
@@ -90,25 +91,21 @@ namespace StellarNet.Lite.Shared.Infrastructure
             AutoBinder.BindServerModule(replayModule, ServerApp.GlobalDispatcher, DeserializeFunc);
 
             NetworkServer.RegisterHandler<MirrorPacketMsg>(OnServerReceivePacket, false);
-            Debug.Log("<color=green>[StellarNet Server] 服务端装配完毕，开始监听网络请求。</color>");
+
+            LiteLogger.LogInfo("StellarNetManager", $"服务端装配完毕，开始监听网络请求。TickRate: {NetworkServer.tickRate}, MaxConn: {this.maxConnections}");
         }
 
         public override void OnServerDisconnect(NetworkConnectionToClient conn)
         {
             if (ServerApp != null)
             {
-                var method = typeof(ServerApp).GetMethod("GetSessionByConnectionId",
-                    BindingFlags.NonPublic | BindingFlags.Instance);
-                if (method != null)
+                var session = ServerApp.TryGetSessionByConnectionId(conn.connectionId);
+                if (session != null)
                 {
-                    var session = method.Invoke(ServerApp, new object[] { conn.connectionId }) as Session;
-                    if (session != null)
-                    {
-                        ServerApp.UnbindConnection(session);
-                    }
+                    LiteLogger.LogInfo("StellarNetManager", $"物理连接断开，触发会话离线", "-", session.SessionId, $"ConnId:{conn.connectionId}");
+                    ServerApp.UnbindConnection(session);
                 }
             }
-
             base.OnServerDisconnect(conn);
         }
 
@@ -129,7 +126,6 @@ namespace StellarNet.Lite.Shared.Infrastructure
         {
             base.OnStartClient();
 
-            // 核心修复：将 SerializeFunc 注入 ClientApp，支撑统一的强类型发包器
             ClientApp = new ClientApp(MirrorClientSend, SerializeFunc);
 
             var userModule = new ClientUserModule(ClientApp, MirrorClientSend, SerializeFunc);
@@ -143,17 +139,18 @@ namespace StellarNet.Lite.Shared.Infrastructure
             AutoBinder.BindClientModule(replayModule, ClientApp.GlobalDispatcher, DeserializeFunc);
 
             NetworkClient.RegisterHandler<MirrorPacketMsg>(OnClientReceivePacket, false);
-            Debug.Log("<color=green>[StellarNet Client] 客户端装配完毕，准备就绪。</color>");
+
+            LiteLogger.LogInfo("StellarNetManager", "客户端装配完毕，准备就绪。");
         }
 
         public override void OnClientDisconnect()
         {
             if (ClientApp != null)
             {
+                LiteLogger.LogInfo("StellarNetManager", "客户端物理断开，清理本地房间与会话状态");
                 ClientApp.LeaveRoom();
                 ClientApp.Session.Clear();
             }
-
             base.OnClientDisconnect();
         }
 

@@ -6,6 +6,9 @@ namespace StellarNet.Lite.Shared.Protocol
     public sealed class C2S_Login
     {
         public string AccountId;
+
+        // 核心新增 (Point 18)：强制要求客户端上报版本号
+        public string ClientVersion;
     }
 
     [NetMsg(101, NetScope.Global, NetDir.S2C)]
@@ -38,7 +41,6 @@ namespace StellarNet.Lite.Shared.Protocol
         public string Reason;
     }
 
-    // 核心新增：重连握手协议。客户端装配完 Component 后发送，通知服务端下发快照
     [NetMsg(105, NetScope.Global, NetDir.C2S)]
     public sealed class C2S_ReconnectReady
     {

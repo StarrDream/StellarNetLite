@@ -4,13 +4,16 @@ using UnityEngine;
 using Mirror;
 using StellarNet.Lite.Shared.Core;
 using StellarNet.Lite.Shared.Protocol;
-using StellarNet.Lite.Server.Core;
 using StellarNet.Lite.Client.Core;
 using StellarNet.Lite.Client.Components;
 using StellarNet.Lite.Shared.Infrastructure;
 
 namespace StellarNet.Lite.Demo
 {
+    /// <summary>
+    /// 核心重构 (Point 15)：物理边界剥离。
+    /// 本脚本现在仅作为纯粹的客户端消费方，不再承担服务端上帝视角的管理职责。
+    /// </summary>
     public class StellarNetDemoUI : MonoBehaviour
     {
         private StellarNetMirrorManager _manager;
@@ -21,7 +24,6 @@ namespace StellarNet.Lite.Demo
         private RoomBriefInfo[] _roomList = new RoomBriefInfo[0];
         private string[] _replayList = new string[0];
         private string _downloadingReplayId = string.Empty;
-        private Vector2 _serverScroll;
 
         private void Start()
         {
@@ -35,7 +37,6 @@ namespace StellarNet.Lite.Demo
 
         private void OnEnable()
         {
-            // 核心修复：订阅全新的 GlobalEventBus
             GlobalEventBus<RoomListEvent>.OnEvent += HandleRoomList;
             GlobalEventBus<ReplayListEvent>.OnEvent += HandleReplayList;
             GlobalEventBus<ReplayDownloadedEvent>.OnEvent += HandleReplayDownloaded;
@@ -68,7 +69,7 @@ namespace StellarNet.Lite.Demo
             }
             else
             {
-                Debug.LogError($"[DemoUI] 录像下载或解析失败: {evt.Reason}");
+                LiteLogger.LogError("DemoUI", $"录像下载或解析失败: {evt.Reason}");
             }
         }
 
@@ -82,8 +83,6 @@ namespace StellarNet.Lite.Demo
                 return;
             }
 
-            GUILayout.BeginHorizontal();
-
             if (NetworkClient.active && _manager.ClientApp != null)
             {
                 GUILayout.BeginArea(new Rect(20, 20, 400, Screen.height - 40), GUI.skin.box);
@@ -92,18 +91,6 @@ namespace StellarNet.Lite.Demo
                 GUILayout.EndScrollView();
                 GUILayout.EndArea();
             }
-
-            if (NetworkServer.active && _manager.ServerApp != null)
-            {
-                int xOffset = NetworkClient.active ? 440 : 20;
-                GUILayout.BeginArea(new Rect(xOffset, 20, 500, Screen.height - 40), GUI.skin.box);
-                _serverScroll = GUILayout.BeginScrollView(_serverScroll);
-                DrawServerPanel();
-                GUILayout.EndScrollView();
-                GUILayout.EndArea();
-            }
-
-            GUILayout.EndHorizontal();
         }
 
         private void DrawModeSelection()
@@ -143,11 +130,10 @@ namespace StellarNet.Lite.Demo
                 _inputAccountId = GUILayout.TextField(_inputAccountId);
                 GUILayout.EndHorizontal();
                 GUILayout.Space(10);
-
                 if (GUILayout.Button("发起登录 (Login)", GUILayout.Height(40)))
                 {
-                    // 核心修复：全面切换为强类型发包
-                    app.SendMessage(new C2S_Login { AccountId = _inputAccountId });
+                    // 核心修复 (Point 18)：发送登录请求时附带客户端版本号
+                    app.SendMessage(new C2S_Login { AccountId = _inputAccountId, ClientVersion = Application.version });
                 }
             }
             else if (app.State == ClientAppState.Idle)
@@ -170,22 +156,20 @@ namespace StellarNet.Lite.Demo
 
                 GUILayout.EndHorizontal();
                 GUI.color = Color.white;
-                GUILayout.Space(10);
 
+                GUILayout.Space(10);
                 GUILayout.Label("--- 房间创建 ---");
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("房间名称:", GUILayout.Width(60));
                 _inputRoomName = GUILayout.TextField(_inputRoomName);
                 GUILayout.EndHorizontal();
                 GUILayout.Space(5);
-
                 if (GUILayout.Button("创建基础房间 (仅 Settings: ID 1)", GUILayout.Height(30)))
                 {
                     app.SendMessage(new C2S_CreateRoom { RoomName = _inputRoomName, ComponentIds = new int[] { 1 } });
                 }
 
                 GUILayout.Space(5);
-
                 GUI.color = Color.green;
                 if (GUILayout.Button("创建对战房间 (Settings + GameDemo: ID 1, 100)", GUILayout.Height(40)))
                 {
@@ -194,8 +178,8 @@ namespace StellarNet.Lite.Demo
                 }
 
                 GUI.color = Color.white;
-                GUILayout.Space(15);
 
+                GUILayout.Space(15);
                 GUILayout.Label("--- 房间大厅 ---");
                 if (GUILayout.Button("刷新房间列表", GUILayout.Height(30)))
                 {
@@ -253,6 +237,7 @@ namespace StellarNet.Lite.Demo
                     {
                         GUILayout.BeginHorizontal("box");
                         GUILayout.Label($"录像 ID:\n{replayId}");
+
                         bool isDownloading = _downloadingReplayId == replayId;
                         GUI.enabled = !isDownloading && string.IsNullOrEmpty(_downloadingReplayId);
 
@@ -277,7 +262,6 @@ namespace StellarNet.Lite.Demo
                 GUILayout.Label($"当前状态: 房间内\nRoomId: {app.CurrentRoom.RoomId}");
                 GUILayout.Space(10);
 
-                // 核心修复：使用合法的 GetComponent 接口替代反射
                 ClientRoomSettingsComponent settingsComp = app.CurrentRoom.GetComponent<ClientRoomSettingsComponent>();
                 if (settingsComp != null)
                 {
@@ -297,6 +281,7 @@ namespace StellarNet.Lite.Demo
                             string meStr = isMe ? " (我)" : "";
                             string ownerStr = member.IsOwner ? "<color=yellow>[房主]</color>" : "";
                             string readyStr = member.IsReady ? "<color=green>已准备</color>" : "<color=red>未准备</color>";
+
                             GUILayout.Label($"- {member.SessionId.Substring(0, 8)}...{meStr} {ownerStr} 状态: {readyStr}",
                                 new GUIStyle(GUI.skin.label) { richText = true });
                         }
@@ -329,6 +314,7 @@ namespace StellarNet.Lite.Demo
                     {
                         GUILayout.Label("<color=green><b>游戏进行中...</b></color>",
                             new GUIStyle(GUI.skin.label) { richText = true });
+
                         if (settingsComp.Members.TryGetValue(app.Session.SessionId, out var myInfo) && myInfo.IsOwner)
                         {
                             GUILayout.Space(10);
@@ -374,6 +360,7 @@ namespace StellarNet.Lite.Demo
             GUILayout.BeginVertical("box");
             GUILayout.Label($"<b>播放进度: {currentTick} / {totalTicks}</b>",
                 new GUIStyle(GUI.skin.label) { richText = true });
+
             float newProgress = GUILayout.HorizontalSlider(currentTick, 0, totalTicks);
             if (Mathf.Abs(newProgress - currentTick) > 1f)
             {
@@ -414,79 +401,6 @@ namespace StellarNet.Lite.Demo
             }
 
             GUI.color = Color.white;
-        }
-
-        private void DrawServerPanel()
-        {
-            GUILayout.Label("<b><size=16>服务端上帝视角 (Server Admin)</size></b>",
-                new GUIStyle(GUI.skin.label) { richText = true, alignment = TextAnchor.MiddleCenter });
-            GUILayout.Space(10);
-
-            // 核心修复：彻底剔除反射，使用 ServerApp 提供的合法只读边界
-            var sessions = _manager.ServerApp.Sessions;
-            var rooms = _manager.ServerApp.Rooms;
-
-            GUILayout.Label($"<b>在线/离线会话总数: {sessions.Count}</b>", new GUIStyle(GUI.skin.label) { richText = true });
-            foreach (var kvp in sessions)
-            {
-                var session = kvp.Value;
-                GUILayout.BeginVertical("box");
-                string status = session.IsOnline ? "<color=green>在线</color>" : "<color=gray>物理离线</color>";
-                GUILayout.Label($"UID: {session.Uid} | 状态: {status}", new GUIStyle(GUI.skin.label) { richText = true });
-                GUILayout.Label($"SessionId: {session.SessionId}");
-                GUILayout.Label($"所在房间: {(string.IsNullOrEmpty(session.CurrentRoomId) ? "无" : session.CurrentRoomId)}");
-
-                if (session.IsOnline)
-                {
-                    GUI.color = Color.red;
-                    if (GUILayout.Button("强制踢下线 (KickOut)"))
-                    {
-                        var msg = new S2C_KickOut { Reason = "被管理员强制踢出" };
-                        _manager.ServerApp.SendMessageToSession(session, msg);
-                        _manager.ServerApp.UnbindConnection(session);
-                    }
-
-                    GUI.color = Color.white;
-                }
-
-                GUILayout.EndVertical();
-            }
-
-            GUILayout.Space(20);
-            GUILayout.Label($"<b>活跃房间总数: {rooms.Count}</b>", new GUIStyle(GUI.skin.label) { richText = true });
-            foreach (var kvp in rooms)
-            {
-                var room = kvp.Value;
-                GUILayout.BeginVertical("box");
-                GUILayout.Label(
-                    $"RoomName: {room.RoomName}\nRoomId: {room.RoomId} | 成员数: {room.MemberCount} | 状态: {room.State}");
-                GUILayout.Label($"录制状态: {(room.IsRecording ? "<color=red>录制中...</color>" : "未录制")}",
-                    new GUIStyle(GUI.skin.label) { richText = true });
-
-                GUILayout.BeginHorizontal();
-                if (room.State == RoomState.Playing)
-                {
-                    GUI.enabled = false;
-                    GUILayout.Button("对局录制中...");
-                    GUI.enabled = true;
-                }
-                else if (room.State == RoomState.Finished)
-                {
-                    GUI.enabled = false;
-                    GUILayout.Button("已结算，等待清理");
-                    GUI.enabled = true;
-                }
-
-                GUI.color = Color.red;
-                if (GUILayout.Button("强制销毁房间"))
-                {
-                    _manager.ServerApp.DestroyRoom(room.RoomId);
-                }
-
-                GUI.color = Color.white;
-                GUILayout.EndHorizontal();
-                GUILayout.EndVertical();
-            }
         }
     }
 }

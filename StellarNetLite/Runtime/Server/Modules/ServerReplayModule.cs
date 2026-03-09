@@ -6,6 +6,7 @@ using StellarNet.Lite.Shared.Core;
 using StellarNet.Lite.Shared.Protocol;
 using StellarNet.Lite.Server.Core;
 using StellarNet.Lite.Server.Infrastructure;
+using StellarNet.Lite.Shared.Infrastructure;
 
 namespace StellarNet.Lite.Server.Modules
 {
@@ -35,22 +36,22 @@ namespace StellarNet.Lite.Server.Modules
                 .Replace("\\", "/");
             string[] replayIds = new string[0];
 
-            try
+            // 核心修复 (Point 14)：前置校验目录是否存在，避免抛出不必要的异常
+            if (Directory.Exists(folderPath))
             {
-                if (Directory.Exists(folderPath))
+                try
                 {
                     // 获取最新的 10 个录像文件
                     var files = new DirectoryInfo(folderPath).GetFiles("*.json")
                         .OrderByDescending(f => f.CreationTimeUtc)
                         .Take(10)
                         .ToArray();
-
                     replayIds = files.Select(f => Path.GetFileNameWithoutExtension(f.Name)).ToArray();
                 }
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[ServerReplayModule] 读取录像列表异常: {e.Message}");
+                catch (Exception e)
+                {
+                    LiteLogger.LogError("ServerReplayModule", $"读取录像列表异常: {e.Message}", "-", session.SessionId);
+                }
             }
 
             var res = new S2C_ReplayList { ReplayIds = replayIds };
@@ -66,39 +67,44 @@ namespace StellarNet.Lite.Server.Modules
                 .Replace("\\", "/");
             string fullPath = Path.Combine(folderPath, $"{msg.ReplayId}.json").Replace("\\", "/");
 
+            // 核心修复 (Point 14)：前置校验文件是否存在，拒绝深层嵌套
+            if (!File.Exists(fullPath))
+            {
+                LiteLogger.LogWarning("ServerReplayModule", $"请求的录像文件不存在: {msg.ReplayId}", "-", session.SessionId);
+                var notFoundRes = new S2C_DownloadReplayResult
+                {
+                    Success = false,
+                    ReplayId = msg.ReplayId,
+                    ReplayFileData = string.Empty,
+                    Reason = "录像文件不存在或已被清理"
+                };
+                _app.SendMessageToSession(session, notFoundRes);
+                return;
+            }
+
             try
             {
-                if (File.Exists(fullPath))
+                string json = File.ReadAllText(fullPath);
+                var res = new S2C_DownloadReplayResult
                 {
-                    string json = File.ReadAllText(fullPath);
-                    var res = new S2C_DownloadReplayResult
-                    {
-                        Success = true,
-                        ReplayId = msg.ReplayId,
-                        ReplayFileData = json,
-                        Reason = string.Empty
-                    };
-                    _app.SendMessageToSession(session, res);
-                    Debug.Log($"[ServerReplayModule] 已向客户端 {session.SessionId} 下发录像 {msg.ReplayId}");
-                }
-                else
-                {
-                    var res = new S2C_DownloadReplayResult
-                    {
-                        Success = false,
-                        ReplayId = msg.ReplayId,
-                        ReplayFileData = string.Empty,
-                        Reason = "录像文件不存在或已被清理"
-                    };
-                    _app.SendMessageToSession(session, res);
-                }
+                    Success = true,
+                    ReplayId = msg.ReplayId,
+                    ReplayFileData = json,
+                    Reason = string.Empty
+                };
+                _app.SendMessageToSession(session, res);
+                LiteLogger.LogInfo("ServerReplayModule", $"已向客户端下发录像 {msg.ReplayId}", "-", session.SessionId);
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ServerReplayModule] 读取录像文件异常: {e.Message}");
-                var res = new S2C_DownloadReplayResult
-                    { Success = false, ReplayId = msg.ReplayId, Reason = "服务器读取文件失败" };
-                _app.SendMessageToSession(session, res);
+                LiteLogger.LogError("ServerReplayModule", $"读取录像文件异常: {e.Message}", "-", session.SessionId);
+                var errorRes = new S2C_DownloadReplayResult
+                {
+                    Success = false,
+                    ReplayId = msg.ReplayId,
+                    Reason = "服务器读取文件失败"
+                };
+                _app.SendMessageToSession(session, errorRes);
             }
         }
     }

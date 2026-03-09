@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using UnityEngine;
 
@@ -8,7 +9,6 @@ namespace StellarNet.Lite.Shared.Core
     /// <summary>
     /// 网络消息元数据映射器。
     /// 职责：在程序启动时扫描并缓存所有携带 [NetMsg] 特性的类型。
-    /// 架构意图：为“强类型统一发送器”提供支撑，使业务层发包时只需传入对象，由底层自动解析 MsgId 和 Scope，彻底隔离底层路由字段。
     /// </summary>
     public static class NetMessageMapper
     {
@@ -27,7 +27,7 @@ namespace StellarNet.Lite.Shared.Core
             foreach (var assembly in assemblies)
             {
                 if (assembly.FullName.StartsWith("System") || assembly.FullName.StartsWith("UnityEngine") ||
-                    assembly.FullName.StartsWith("UnityEditor"))
+                    assembly.FullName.StartsWith("UnityEditor") || assembly.FullName.StartsWith("mscorlib"))
                 {
                     continue;
                 }
@@ -50,13 +50,50 @@ namespace StellarNet.Lite.Shared.Core
                         }
                     }
                 }
-                catch (ReflectionTypeLoadException)
+                catch (ReflectionTypeLoadException ex)
                 {
+                    // 核心修复 (Point 3)：暴露 LoaderExceptions，防止第三方 DLL 冲突导致的静默失败
+                    Debug.LogError(
+                        $"[NetMessageMapper] 扫描程序集 {assembly.FullName} 时发生 ReflectionTypeLoadException，协议扫描可能不完整！");
+                    foreach (var loaderEx in ex.LoaderExceptions)
+                    {
+                        if (loaderEx != null)
+                        {
+                            Debug.LogError($"[NetMessageMapper] LoaderException 明细: {loaderEx.Message}");
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError($"[NetMessageMapper] 扫描程序集 {assembly.FullName} 时发生未知异常: {e.Message}");
                 }
             }
 
             _isInitialized = true;
-            Debug.Log($"[NetMessageMapper] 协议元数据扫描完毕，共缓存 {_typeToMetaCache.Count} 个协议。");
+            GenerateIntegrityReport();
+        }
+
+        // 核心修复 (Point 4)：启动期完整性校验报告
+        private static void GenerateIntegrityReport()
+        {
+            int c2sCount = _typeToMetaCache.Values.Count(m => m.Dir == NetDir.C2S);
+            int s2cCount = _typeToMetaCache.Values.Count(m => m.Dir == NetDir.S2C);
+            int globalCount = _typeToMetaCache.Values.Count(m => m.Scope == NetScope.Global);
+            int roomCount = _typeToMetaCache.Values.Count(m => m.Scope == NetScope.Room);
+
+            Debug.Log(
+                $"<color=cyan>[StellarNet 协议加载报告] 总协议数: {_typeToMetaCache.Count} | C2S: {c2sCount} | S2C: {s2cCount} | Global: {globalCount} | Room: {roomCount}</color>");
+
+            // 最小核心协议校验 (100: Login, 200: CreateRoom, 202: JoinRoom)
+            bool hasLogin = _typeToMetaCache.Values.Any(m => m.Id == 100);
+            bool hasCreateRoom = _typeToMetaCache.Values.Any(m => m.Id == 200);
+            bool hasJoinRoom = _typeToMetaCache.Values.Any(m => m.Id == 202);
+
+            if (!hasLogin || !hasCreateRoom || !hasJoinRoom)
+            {
+                Debug.LogError(
+                    "[NetMessageMapper] 致命阻断: 核心调度协议 (Login/CreateRoom/JoinRoom) 缺失！请检查 MsgIdConst 或协议定义文件是否被意外移除。");
+            }
         }
 
         public static bool TryGetMeta(Type msgType, out NetMsgAttribute meta)

@@ -10,7 +10,7 @@ namespace StellarNet.Lite.Editor.Tools
     /// <summary>
     /// StellarNet Lite 业务脚手架生成器。
     /// 职责：提供可视化的 UI 界面，一键生成符合 MSV 架构与防重放规范的模板代码。
-    /// 架构说明：将生成的业务代码严格输出到业务目录（如 Scripts/Game），并使用独立的业务命名空间，确保框架代码与业务代码的绝对物理隔离。
+    /// 核心修复 (Point 6)：全面翻新生成的模板代码，默认采用强类型发送器与房间级事件总线，彻底移除旧时代的序列化器注入与手动拼包。
     /// </summary>
     public sealed class StellarNetScaffoldWindow : EditorWindow
     {
@@ -26,7 +26,6 @@ namespace StellarNet.Lite.Editor.Tools
         private string _moduleName = "NewFeature";
         private int _startProtocolId = 10000;
         private string _authorName = "Developer";
-
         private string _outputRootPath = "Assets/Scripts/Game";
         private string _baseNamespace = "Game";
 
@@ -56,7 +55,8 @@ namespace StellarNet.Lite.Editor.Tools
 
             GUILayout.Space(10);
             GUILayout.Label("StellarNet Lite 业务代码生成器", _headerStyle);
-            EditorGUILayout.HelpBox("输入模块名称与起始协议 ID，工具将自动在指定的业务目录下生成 Shared、Server、Client 脚本，实现框架与业务的物理隔离。", MessageType.Info);
+            EditorGUILayout.HelpBox("输入模块名称与起始协议 ID，工具将自动在指定的业务目录下生成 Shared、Server、Client 脚本，实现框架与业务的物理隔离。",
+                MessageType.Info);
             GUILayout.Space(10);
 
             DrawMainPanel();
@@ -180,7 +180,8 @@ namespace StellarNet.Lite.Editor.Tools
 
                 AssetDatabase.Refresh();
                 Debug.Log($"[Scaffold] 业务模块 {_moduleName} 生成完毕，输出路径: {_outputRootPath}");
-                EditorUtility.DisplayDialog("成功", $"业务模块 {_moduleName} 生成完毕！\n请前往 StellarNetMirrorManager.cs 进行注册。", "确定");
+                EditorUtility.DisplayDialog("成功", $"业务模块 {_moduleName} 生成完毕！\n请前往 StellarNetMirrorManager.cs 进行装配注册。",
+                    "确定");
             }
             catch (Exception e)
             {
@@ -223,6 +224,12 @@ namespace StellarNet.Lite.Editor.Tools
                 sb.AppendLine("    {");
                 sb.AppendLine("    }");
             }
+            else
+            {
+                sb.AppendLine($"    public struct {_moduleName}Event : IGlobalEvent");
+                sb.AppendLine("    {");
+                sb.AppendLine("    }");
+            }
 
             sb.AppendLine("}");
 
@@ -246,13 +253,6 @@ namespace StellarNet.Lite.Editor.Tools
             sb.AppendLine("{");
             sb.AppendLine($"    public sealed class Server{_moduleName}Component : RoomComponent");
             sb.AppendLine("    {");
-            sb.AppendLine("        private readonly Func<object, byte[]> _serializeFunc;");
-            sb.AppendLine("");
-            sb.AppendLine($"        public Server{_moduleName}Component(Func<object, byte[]> serializeFunc)");
-            sb.AppendLine("        {");
-            sb.AppendLine("            _serializeFunc = serializeFunc;");
-            sb.AppendLine("        }");
-            sb.AppendLine("");
             sb.AppendLine("        public override void OnInit()");
             sb.AppendLine("        {");
             sb.AppendLine("        }");
@@ -263,14 +263,7 @@ namespace StellarNet.Lite.Editor.Tools
             sb.AppendLine("            if (session == null || msg == null) return;");
             sb.AppendLine("");
             sb.AppendLine($"            var syncMsg = new S2C_{_moduleName}Sync();");
-            sb.AppendLine($"            Broadcast({_startProtocolId + 1}, syncMsg);");
-            sb.AppendLine("        }");
-            sb.AppendLine("");
-            sb.AppendLine("        private void Broadcast(int msgId, object msgObj)");
-            sb.AppendLine("        {");
-            sb.AppendLine("            byte[] payload = _serializeFunc(msgObj);");
-            sb.AppendLine("            var packet = new Packet(msgId, NetScope.Room, Room.RoomId, payload);");
-            sb.AppendLine("            Room.Broadcast(packet);");
+            sb.AppendLine("            Room.BroadcastMessage(syncMsg);");
             sb.AppendLine("        }");
             sb.AppendLine("    }");
             sb.AppendLine("}");
@@ -303,7 +296,7 @@ namespace StellarNet.Lite.Editor.Tools
             sb.AppendLine("        {");
             sb.AppendLine("            if (msg == null) return;");
             sb.AppendLine("");
-            sb.AppendLine($"            LiteEventBus<{_moduleName}Event>.Fire(new {_moduleName}Event());");
+            sb.AppendLine($"            Room.EventBus.Fire(new {_moduleName}Event());");
             sb.AppendLine("        }");
             sb.AppendLine("    }");
             sb.AppendLine("}");
@@ -329,20 +322,19 @@ namespace StellarNet.Lite.Editor.Tools
             sb.AppendLine($"    public sealed class Server{_moduleName}Module");
             sb.AppendLine("    {");
             sb.AppendLine("        private readonly ServerApp _app;");
-            sb.AppendLine("        private readonly Action<int, Packet> _networkSender;");
-            sb.AppendLine("        private readonly Func<object, byte[]> _serializeFunc;");
             sb.AppendLine("");
-            sb.AppendLine($"        public Server{_moduleName}Module(ServerApp app, Action<int, Packet> networkSender, Func<object, byte[]> serializeFunc)");
+            sb.AppendLine($"        public Server{_moduleName}Module(ServerApp app)");
             sb.AppendLine("        {");
             sb.AppendLine("            _app = app;");
-            sb.AppendLine("            _networkSender = networkSender;");
-            sb.AppendLine("            _serializeFunc = serializeFunc;");
             sb.AppendLine("        }");
             sb.AppendLine("");
             sb.AppendLine("        [NetHandler]");
             sb.AppendLine($"        public void OnC2S_{_moduleName}Req(Session session, C2S_{_moduleName}Req msg)");
             sb.AppendLine("        {");
             sb.AppendLine("            if (session == null || msg == null) return;");
+            sb.AppendLine("");
+            sb.AppendLine($"            var syncMsg = new S2C_{_moduleName}Sync();");
+            sb.AppendLine("            _app.SendMessageToSession(session, syncMsg);");
             sb.AppendLine("        }");
             sb.AppendLine("    }");
             sb.AppendLine("}");
@@ -368,20 +360,18 @@ namespace StellarNet.Lite.Editor.Tools
             sb.AppendLine($"    public sealed class Client{_moduleName}Module");
             sb.AppendLine("    {");
             sb.AppendLine("        private readonly ClientApp _app;");
-            sb.AppendLine("        private readonly Action<Packet> _networkSender;");
-            sb.AppendLine("        private readonly Func<object, byte[]> _serializeFunc;");
             sb.AppendLine("");
-            sb.AppendLine($"        public Client{_moduleName}Module(ClientApp app, Action<Packet> networkSender, Func<object, byte[]> serializeFunc)");
+            sb.AppendLine($"        public Client{_moduleName}Module(ClientApp app)");
             sb.AppendLine("        {");
             sb.AppendLine("            _app = app;");
-            sb.AppendLine("            _networkSender = networkSender;");
-            sb.AppendLine("            _serializeFunc = serializeFunc;");
             sb.AppendLine("        }");
             sb.AppendLine("");
             sb.AppendLine("        [NetHandler]");
             sb.AppendLine($"        public void OnS2C_{_moduleName}Sync(S2C_{_moduleName}Sync msg)");
             sb.AppendLine("        {");
             sb.AppendLine("            if (msg == null) return;");
+            sb.AppendLine("");
+            sb.AppendLine($"            GlobalEventBus<{_moduleName}Event>.Fire(new {_moduleName}Event());");
             sb.AppendLine("        }");
             sb.AppendLine("    }");
             sb.AppendLine("}");

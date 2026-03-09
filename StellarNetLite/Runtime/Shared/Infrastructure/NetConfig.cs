@@ -20,15 +20,14 @@ namespace StellarNet.Lite.Shared.Infrastructure
         public ushort Port = 7777;
         public int MaxConnections = 200;
         public int TickRate = 60;
-
         public int MaxRoomLifetimeHours = 24;
         public int MaxReplayFiles = 100;
-
         public int OfflineTimeoutLobbyMinutes = 5;
         public int OfflineTimeoutRoomMinutes = 60;
-
-        // 核心新增：孤儿房间（0人房间）的防暴毙熔断时间
         public int EmptyRoomTimeoutMinutes = 5;
+
+        // 核心新增 (Point 18)：最低允许的客户端版本号，用于阻断过旧版本的连接
+        public string MinClientVersion = "1.0.0";
     }
 
     public static class NetConfigLoader
@@ -73,6 +72,33 @@ namespace StellarNet.Lite.Shared.Infrastructure
             }
         }
 
+        public static NetConfig LoadServerConfigSync(ConfigRootPath rootPath)
+        {
+            string basePath = rootPath == ConfigRootPath.StreamingAssets
+                ? Application.streamingAssetsPath
+                : Application.persistentDataPath;
+
+            string fullPath = Path.Combine(basePath, ConfigFolderName, ConfigFileName).Replace("\\", "/");
+
+            if (!File.Exists(fullPath))
+            {
+                Debug.LogWarning($"[NetConfigLoader] 未找到配置文件 {fullPath}，将使用默认配置启动服务器。");
+                return new NetConfig();
+            }
+
+            try
+            {
+                string json = File.ReadAllText(fullPath);
+                var config = JsonConvert.DeserializeObject<NetConfig>(json);
+                return config ?? new NetConfig();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[NetConfigLoader] 服务端同步读取配置异常: {e.Message}");
+                return new NetConfig();
+            }
+        }
+
         private static Task<string> ReadViaWebRequestAsync(string url)
         {
             var tcs = new TaskCompletionSource<string>();
@@ -81,7 +107,8 @@ namespace StellarNet.Lite.Shared.Infrastructure
 
             operation.completed += op =>
             {
-                if (request.result == UnityWebRequest.Result.ConnectionError || request.result == UnityWebRequest.Result.ProtocolError)
+                if (request.result == UnityWebRequest.Result.ConnectionError ||
+                    request.result == UnityWebRequest.Result.ProtocolError)
                 {
                     tcs.SetException(new Exception(request.error));
                 }
@@ -92,29 +119,14 @@ namespace StellarNet.Lite.Shared.Infrastructure
 
                 request.Dispose();
             };
+
             return tcs.Task;
         }
 
 #if UNITY_EDITOR
         public static NetConfig LoadEditorSync(ConfigRootPath rootPath)
         {
-            string basePath = rootPath == ConfigRootPath.StreamingAssets
-                ? Application.streamingAssetsPath
-                : Application.persistentDataPath;
-            string fullPath = Path.Combine(basePath, ConfigFolderName, ConfigFileName).Replace("\\", "/");
-
-            if (!File.Exists(fullPath)) return new NetConfig();
-
-            try
-            {
-                string json = File.ReadAllText(fullPath);
-                return JsonConvert.DeserializeObject<NetConfig>(json) ?? new NetConfig();
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[NetConfigLoader] Editor读取异常: {e.Message}");
-                return new NetConfig();
-            }
+            return LoadServerConfigSync(rootPath);
         }
 #endif
     }

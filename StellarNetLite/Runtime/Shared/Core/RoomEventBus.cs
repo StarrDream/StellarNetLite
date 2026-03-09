@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using UnityEngine;
+using StellarNet.Lite.Shared.Infrastructure;
 
 namespace StellarNet.Lite.Shared.Core
 {
@@ -13,7 +13,10 @@ namespace StellarNet.Lite.Shared.Core
 
     /// <summary>
     /// 房间作用域事件总线 (实例级)。
-    /// 职责：实现事件的房间级物理隔离，解决回放房间与在线房间共存、多房间切换时的事件串线问题。
+    /// 核心规范 (Point 12 & 13)：
+    /// 1. 边界规范：仅允许处理房间内的状态同步、战斗表现、结算等强房间上下文事件。严禁将大厅、登录等全局事件放入此总线。
+    /// 2. 性能口径：本总线为“低 GC 实例级隔离总线”（内部使用 Dictionary 与 Delegate 维护，订阅/注销时有微量装箱分配），并非绝对的零 GC。
+    /// 3. 物理隔离：通过与 RoomId 绑定，彻底解决回放房间与在线房间共存、多房间切换时的事件串线问题。
     /// </summary>
     public sealed class RoomEventBus
     {
@@ -29,7 +32,7 @@ namespace StellarNet.Lite.Shared.Core
         {
             if (handler == null)
             {
-                Debug.LogError($"[RoomEventBus] 订阅失败: 传入的 handler 为空。RoomId: {_ownerRoomId}");
+                LiteLogger.LogError("RoomEventBus", "订阅失败: 传入的 handler 为空", _ownerRoomId);
                 return;
             }
 

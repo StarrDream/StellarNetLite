@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using UnityEngine;
 using StellarNet.Lite.Shared.Core;
 using StellarNet.Lite.Shared.Protocol;
 using StellarNet.Lite.Server.Core;
 using StellarNet.Lite.GameDemo.Shared;
+using StellarNet.Lite.Shared.Infrastructure;
 
 namespace StellarNet.Lite.GameDemo.Server
 {
@@ -12,12 +12,11 @@ namespace StellarNet.Lite.GameDemo.Server
     {
         private readonly Dictionary<string, DemoPlayerInfo> _players = new Dictionary<string, DemoPlayerInfo>();
         private readonly List<string> _pendingMembers = new List<string>();
-        private readonly Func<object, byte[]> _serializeFunc;
         private bool _isGameOver = false;
 
+        // 核心重构：彻底移除业务组件内部的序列化器，全面拥抱 Room 基类的强类型发送器
         public ServerDemoGameComponent(Func<object, byte[]> serializeFunc)
         {
-            _serializeFunc = serializeFunc;
         }
 
         public override void OnInit()
@@ -51,7 +50,7 @@ namespace StellarNet.Lite.GameDemo.Server
             if (_players.Remove(session.SessionId))
             {
                 var msg = new S2C_DemoPlayerLeft { SessionId = session.SessionId };
-                Broadcast(msg);
+                Room.BroadcastMessage(msg);
                 CheckWinCondition();
             }
         }
@@ -75,9 +74,9 @@ namespace StellarNet.Lite.GameDemo.Server
 
             var snapshot = new List<DemoPlayerInfo>(_players.Values);
             var msg = new S2C_DemoSnapshot { Players = snapshot.ToArray() };
-            Broadcast(msg);
+            Room.BroadcastMessage(msg);
 
-            Debug.Log($"[ServerDemoGame] 游戏正式开始，已为 {_players.Count} 名玩家生成实体");
+            LiteLogger.LogInfo("ServerDemoGame", $"游戏正式开始，已为 {_players.Count} 名玩家生成实体", Room.RoomId);
         }
 
         public override void OnSendSnapshot(Session session)
@@ -86,7 +85,9 @@ namespace StellarNet.Lite.GameDemo.Server
 
             var snapshot = new List<DemoPlayerInfo>(_players.Values);
             var msg = new S2C_DemoSnapshot { Players = snapshot.ToArray() };
-            SendTo(session, msg);
+
+            // 架构规范：定向发送快照，默认不录入回放时间轴
+            Room.SendMessageTo(session, msg);
         }
 
         [NetHandler]
@@ -111,7 +112,7 @@ namespace StellarNet.Lite.GameDemo.Server
                 TargetZ = msg.TargetZ
             };
 
-            Broadcast(syncMsg);
+            Room.BroadcastMessage(syncMsg);
         }
 
         [NetHandler]
@@ -136,7 +137,7 @@ namespace StellarNet.Lite.GameDemo.Server
                 Hp = target.Hp
             };
 
-            Broadcast(hpMsg);
+            Room.BroadcastMessage(hpMsg);
 
             if (target.Hp <= 0)
             {
@@ -165,39 +166,11 @@ namespace StellarNet.Lite.GameDemo.Server
                 _isGameOver = true;
 
                 var overMsg = new S2C_GameEnded { WinnerSessionId = lastAliveSessionId };
-                Broadcast(overMsg);
+                Room.BroadcastMessage(overMsg);
 
-                Debug.Log($"[ServerDemoGame] 游戏结束，胜利者: {lastAliveSessionId}。触发房间结算。");
+                LiteLogger.LogInfo("ServerDemoGame", $"游戏结束，胜利者: {lastAliveSessionId}。触发房间结算。", Room.RoomId);
                 Room.EndGame();
             }
-        }
-
-        // 核心修复：升级为强类型泛型广播，彻底消灭魔数
-        private void Broadcast<T>(T msgObj) where T : class
-        {
-            if (!NetMessageMapper.TryGetMeta(typeof(T), out var meta))
-            {
-                Debug.LogError($"[ServerDemoGame] 广播失败: 未找到类型 {typeof(T).Name} 的网络元数据");
-                return;
-            }
-
-            byte[] payload = _serializeFunc(msgObj);
-            var packet = new Packet(meta.Id, meta.Scope, Room.RoomId, payload);
-            Room.Broadcast(packet);
-        }
-
-        // 核心修复：升级为强类型泛型定向发送，彻底消灭魔数
-        private void SendTo<T>(Session session, T msgObj) where T : class
-        {
-            if (!NetMessageMapper.TryGetMeta(typeof(T), out var meta))
-            {
-                Debug.LogError($"[ServerDemoGame] 发送失败: 未找到类型 {typeof(T).Name} 的网络元数据");
-                return;
-            }
-
-            byte[] payload = _serializeFunc(msgObj);
-            var packet = new Packet(meta.Id, meta.Scope, Room.RoomId, payload);
-            Room.SendTo(session, packet);
         }
     }
 }

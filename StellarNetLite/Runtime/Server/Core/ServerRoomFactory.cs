@@ -31,7 +31,7 @@ namespace StellarNet.Lite.Server.Core
         /// <summary>
         /// 原子化装配服务端房间组件。
         /// 架构意图：采用两阶段提交策略，彻底杜绝半残的权威房间实例产生。
-        /// 修复了 OnInit 生命周期早于网络 Handler 绑定的时序倒置问题。
+        /// 核心修复 (Point 5)：引入 try-catch 事务回滚，确保装配失败时不产生半残房间。
         /// </summary>
         public static bool BuildComponents(Room room, int[] componentIds)
         {
@@ -62,17 +62,24 @@ namespace StellarNet.Lite.Server.Core
                 }
             }
 
-            // 阶段二：全量挂载与绑定
-            foreach (var comp in pendingComponents)
+            // 阶段二与阶段三：带事务回滚的装配与激活
+            try
             {
-                room.AddComponent(comp);
-                ComponentBinder?.Invoke(comp, room.Dispatcher);
+                foreach (var comp in pendingComponents)
+                {
+                    room.AddComponent(comp);
+                    ComponentBinder?.Invoke(comp, room.Dispatcher);
+                }
+
+                room.InitializeComponents();
+                return true;
             }
-
-            // 阶段三：统一激活生命周期
-            room.InitializeComponents();
-
-            return true;
+            catch (Exception e)
+            {
+                Debug.LogError($"[ServerRoomFactory] 房间 {room.RoomId} 装配期间发生异常，触发原子回滚: {e.Message}\n{e.StackTrace}");
+                room.Destroy();
+                return false;
+            }
         }
     }
 }

@@ -31,9 +31,7 @@ namespace StellarNet.Lite.Client.Core
         /// <summary>
         /// 原子化装配客户端房间组件。
         /// 架构意图：采用两阶段提交（Two-Phase Commit）策略。
-        /// 阶段一：全量校验与实例化。若存在缺失的组件，立即阻断，不污染当前房间实例。
-        /// 阶段二：全量挂载与绑定。
-        /// 阶段三：统一激活。确保 OnInit 执行时，所有网络监听器已就绪。
+        /// 核心修复 (Point 5)：引入 try-catch 事务回滚，确保装配失败时不产生半残房间。
         /// </summary>
         public static bool BuildComponents(ClientRoom room, int[] componentIds)
         {
@@ -64,17 +62,24 @@ namespace StellarNet.Lite.Client.Core
                 }
             }
 
-            // 阶段二：全量挂载与绑定
-            foreach (var comp in pendingComponents)
+            // 阶段二与阶段三：带事务回滚的装配与激活
+            try
             {
-                room.AddComponent(comp);
-                ComponentBinder?.Invoke(comp, room.Dispatcher);
+                foreach (var comp in pendingComponents)
+                {
+                    room.AddComponent(comp);
+                    ComponentBinder?.Invoke(comp, room.Dispatcher);
+                }
+
+                room.InitializeComponents();
+                return true;
             }
-
-            // 阶段三：统一激活生命周期
-            room.InitializeComponents();
-
-            return true;
+            catch (Exception e)
+            {
+                Debug.LogError($"[ClientRoomFactory] 房间 {room.RoomId} 装配期间发生异常，触发原子回滚: {e.Message}\n{e.StackTrace}");
+                room.Destroy();
+                return false;
+            }
         }
     }
 }

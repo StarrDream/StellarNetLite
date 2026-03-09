@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using StellarNet.Lite.Shared.Core;
 using StellarNet.Lite.Shared.Infrastructure;
 using StellarNet.Lite.Server.Infrastructure;
-using UnityEngine;
 
 namespace StellarNet.Lite.Server.Core
 {
@@ -31,17 +30,19 @@ namespace StellarNet.Lite.Server.Core
         private readonly Dictionary<string, Session> _members = new Dictionary<string, Session>();
         private readonly List<RoomComponent> _components = new List<RoomComponent>();
         private readonly List<ReplayFrame> _recorder = new List<ReplayFrame>();
-        private readonly Action<int, Packet> _sendToConnection;
 
+        private readonly Action<int, Packet> _sendToConnection;
+        private readonly Func<object, byte[]> _serializeFunc;
         private const int MaxReplayFrames = 108000;
         private int _finishedTickCount = 0;
 
-        public Room(string roomId, Action<int, Packet> sendToConnection)
+        public Room(string roomId, Action<int, Packet> sendToConnection, Func<object, byte[]> serializeFunc)
         {
             RoomId = roomId;
             RoomName = "未命名房间";
             Dispatcher = new RoomDispatcher(roomId);
             _sendToConnection = sendToConnection;
+            _serializeFunc = serializeFunc;
             CreateTime = DateTime.UtcNow;
             EmptySince = DateTime.UtcNow;
             CurrentTick = 0;
@@ -59,12 +60,8 @@ namespace StellarNet.Lite.Server.Core
             if (component == null) return;
             component.Room = this;
             _components.Add(component);
-            // 架构修正：移除此处的 component.OnInit()，推迟到装配完成后由 InitializeComponents 统一调用
         }
 
-        /// <summary>
-        /// 统一激活所有组件，解决初始化时序竞态问题
-        /// </summary>
         public void InitializeComponents()
         {
             for (int i = 0; i < _components.Count; i++)
@@ -79,7 +76,7 @@ namespace StellarNet.Lite.Server.Core
 
             if (State == RoomState.Finished)
             {
-                Debug.LogWarning($"[Room] 拦截加入: 房间 {RoomId} 已结束，拒绝玩家 {session.SessionId} 加入");
+                LiteLogger.LogWarning("Room", "拦截加入: 房间已结束，拒绝加入", RoomId, session.SessionId);
                 return;
             }
 
@@ -133,7 +130,7 @@ namespace StellarNet.Lite.Server.Core
 
             if (State == RoomState.Finished)
             {
-                Debug.LogWarning($"[Room] 拦截重连: 房间 {RoomId} 已结束，强制将重连玩家 {session.SessionId} 移出房间");
+                LiteLogger.LogWarning("Room", "拦截重连: 房间已结束，强制将重连玩家移出房间", RoomId, session.SessionId);
                 RemoveMember(session);
                 return;
             }
@@ -184,8 +181,28 @@ namespace StellarNet.Lite.Server.Core
             }
         }
 
-        public void Broadcast(Packet packet)
+        /// <summary>
+        /// 房间级强类型广播接口。
+        /// 录制规范 (Point 7)：广播包代表全局状态变更，默认【强制录入】回放时间轴。
+        /// </summary>
+        public void BroadcastMessage<T>(T msg) where T : class
         {
+            if (!NetMessageMapper.TryGetMeta(typeof(T), out var meta))
+            {
+                LiteLogger.LogError("Room", $"广播失败: 未找到类型 {typeof(T).Name} 的网络元数据", RoomId);
+                return;
+            }
+
+            if (meta.Dir != NetDir.S2C)
+            {
+                LiteLogger.LogError("Room", $"广播阻断: 协议 {meta.Id} 方向为 {meta.Dir}，服务端只能发送 S2C", RoomId);
+                return;
+            }
+
+            byte[] payload = _serializeFunc(msg);
+            var packet = new Packet(0, meta.Id, meta.Scope, RoomId, payload);
+
+            // 广播包强制录入
             RecordPacket(packet);
 
             foreach (var kvp in _members)
@@ -199,12 +216,29 @@ namespace StellarNet.Lite.Server.Core
         }
 
         /// <summary>
-        /// 定向发送网络包。
-        /// 架构修正：增加 recordToReplay 参数。允许业务层决定定向下发的状态（如重连快照）是否需要编入录像时间轴。
+        /// 房间级强类型定向发送接口。
+        /// 录制规范 (Point 7)：定向包（如重连快照）默认【不录入】回放时间轴，防止污染录像导致状态翻倍。
+        /// 仅当业务层明确指定 recordToReplay = true 时才录入。
         /// </summary>
-        public void SendTo(Session session, Packet packet, bool recordToReplay = false)
+        public void SendMessageTo<T>(Session session, T msg, bool recordToReplay = false) where T : class
         {
             if (session == null || !session.IsOnline) return;
+
+            if (!NetMessageMapper.TryGetMeta(typeof(T), out var meta))
+            {
+                LiteLogger.LogError("Room", $"发送失败: 未找到类型 {typeof(T).Name} 的网络元数据", RoomId, session.SessionId);
+                return;
+            }
+
+            if (meta.Dir != NetDir.S2C)
+            {
+                LiteLogger.LogError("Room", $"发送阻断: 协议 {meta.Id} 方向为 {meta.Dir}，服务端只能发送 S2C", RoomId,
+                    session.SessionId);
+                return;
+            }
+
+            byte[] payload = _serializeFunc(msg);
+            var packet = new Packet(0, meta.Id, meta.Scope, RoomId, payload);
 
             if (recordToReplay)
             {
@@ -236,7 +270,7 @@ namespace StellarNet.Lite.Server.Core
             else
             {
                 IsRecording = false;
-                Debug.LogWarning($"[Room] 录像阻断: 房间 {RoomId} 录像帧数已达上限 {MaxReplayFrames}，自动停止录制");
+                LiteLogger.LogWarning("Room", $"录像阻断: 录像帧数已达上限 {MaxReplayFrames}，自动停止录制", RoomId);
             }
         }
 
@@ -249,6 +283,7 @@ namespace StellarNet.Lite.Server.Core
         public ReplayFile StopRecordAndSave()
         {
             IsRecording = false;
+
             var replayFile = new ReplayFile
             {
                 ReplayId = Guid.NewGuid().ToString("N"),
@@ -256,6 +291,7 @@ namespace StellarNet.Lite.Server.Core
                 ComponentIds = this.ComponentIds,
                 Frames = new List<ReplayFrame>(_recorder)
             };
+
             _recorder.Clear();
             return replayFile;
         }
@@ -269,7 +305,7 @@ namespace StellarNet.Lite.Server.Core
                 _finishedTickCount++;
                 if (_finishedTickCount > 300 && _members.Count > 0)
                 {
-                    Debug.LogWarning($"[Room] 僵尸清理: 房间 {RoomId} 结算已超时，强制清空残留的 {_members.Count} 名玩家");
+                    LiteLogger.LogWarning("Room", $"僵尸清理: 结算已超时，强制清空残留的 {_members.Count} 名玩家", RoomId);
                     var sessionsToKick = new List<Session>(_members.Values);
                     foreach (var s in sessionsToKick)
                     {
@@ -294,6 +330,7 @@ namespace StellarNet.Lite.Server.Core
             }
 
             _members.Clear();
+
             Dispatcher.Clear();
         }
     }

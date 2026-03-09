@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using StellarNet.Lite.Shared.Core;
 using StellarNet.Lite.Shared.Protocol;
 using StellarNet.Lite.Server.Core;
-using UnityEngine;
+using StellarNet.Lite.Shared.Infrastructure;
 
 namespace StellarNet.Lite.Server.Components
 {
@@ -11,11 +11,11 @@ namespace StellarNet.Lite.Server.Components
     {
         private readonly Dictionary<string, bool> _readyStates = new Dictionary<string, bool>();
         private string _ownerSessionId;
-        private readonly Func<object, byte[]> _serializeFunc;
 
+        // 核心重构：彻底移除业务组件内部的序列化器，全面拥抱 Room 基类的强类型发送器
         public ServerRoomSettingsComponent(Func<object, byte[]> serializeFunc)
         {
-            _serializeFunc = serializeFunc;
+            // 构造函数保留签名以兼容工厂注册，但不再持有序列化器
         }
 
         public override void OnInit()
@@ -36,7 +36,7 @@ namespace StellarNet.Lite.Server.Components
             _readyStates[session.SessionId] = false;
 
             var msg = new S2C_MemberJoined { SessionId = session.SessionId };
-            Broadcast(msg);
+            Room.BroadcastMessage(msg);
 
             OnSendSnapshot(session);
         }
@@ -48,7 +48,7 @@ namespace StellarNet.Lite.Server.Components
             _readyStates.Remove(session.SessionId);
 
             var msg = new S2C_MemberLeft { SessionId = session.SessionId };
-            Broadcast(msg);
+            Room.BroadcastMessage(msg);
 
             if (_ownerSessionId == session.SessionId)
             {
@@ -62,7 +62,7 @@ namespace StellarNet.Lite.Server.Components
 
             if (_ownerSessionId == session.SessionId)
             {
-                Debug.LogWarning($"[ServerRoomSettings] 房主 {session.SessionId} 异常离线，触发房主移交机制");
+                LiteLogger.LogWarning("ServerRoomSettings", "房主异常离线，触发房主移交机制", Room.RoomId, session.SessionId);
                 MigrateHost();
             }
         }
@@ -117,7 +117,8 @@ namespace StellarNet.Lite.Server.Components
             }
 
             var msg = new S2C_RoomSnapshot { Members = members.ToArray() };
-            SendTo(session, msg);
+            // 架构规范：定向发送快照，默认不录入回放时间轴
+            Room.SendMessageTo(session, msg);
         }
 
         private void BroadcastSnapshotToAll()
@@ -134,7 +135,7 @@ namespace StellarNet.Lite.Server.Components
             }
 
             var msg = new S2C_RoomSnapshot { Members = members.ToArray() };
-            Broadcast(msg);
+            Room.BroadcastMessage(msg);
         }
 
         [NetHandler]
@@ -147,7 +148,7 @@ namespace StellarNet.Lite.Server.Components
             _readyStates[session.SessionId] = msg.IsReady;
 
             var notify = new S2C_MemberReadyChanged { SessionId = session.SessionId, IsReady = msg.IsReady };
-            Broadcast(notify);
+            Room.BroadcastMessage(notify);
         }
 
         [NetHandler]
@@ -157,13 +158,14 @@ namespace StellarNet.Lite.Server.Components
 
             if (session.SessionId != _ownerSessionId)
             {
-                Debug.LogWarning($"[ServerRoomSettings] 越权拦截: 非房主 {session.SessionId} 尝试开始游戏");
+                LiteLogger.LogWarning("ServerRoomSettings", "越权拦截: 非房主尝试开始游戏", Room.RoomId, session.SessionId);
                 return;
             }
 
             if (Room.State != RoomState.Waiting)
             {
-                Debug.LogWarning($"[ServerRoomSettings] 状态拦截: 房间当前状态为 {Room.State}，无法开始游戏");
+                LiteLogger.LogWarning("ServerRoomSettings", $"状态拦截: 房间当前状态为 {Room.State}，无法开始游戏", Room.RoomId,
+                    session.SessionId);
                 return;
             }
 
@@ -171,14 +173,15 @@ namespace StellarNet.Lite.Server.Components
             {
                 if (kvp.Key != _ownerSessionId && !kvp.Value)
                 {
-                    Debug.LogWarning($"[ServerRoomSettings] 拦截: 玩家 {kvp.Key} 未准备，无法开始游戏");
+                    LiteLogger.LogWarning("ServerRoomSettings", $"拦截: 玩家 {kvp.Key} 未准备，无法开始游戏", Room.RoomId,
+                        session.SessionId);
                     return;
                 }
             }
 
             Room.StartGame();
             var notify = new S2C_GameStarted { StartUnixTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds() };
-            Broadcast(notify);
+            Room.BroadcastMessage(notify);
         }
 
         [NetHandler]
@@ -188,48 +191,21 @@ namespace StellarNet.Lite.Server.Components
 
             if (session.SessionId != _ownerSessionId)
             {
-                Debug.LogWarning($"[ServerRoomSettings] 越权拦截: 非房主 {session.SessionId} 尝试强制结束游戏");
+                LiteLogger.LogWarning("ServerRoomSettings", "越权拦截: 非房主尝试强制结束游戏", Room.RoomId, session.SessionId);
                 return;
             }
 
             if (Room.State != RoomState.Playing)
             {
-                Debug.LogWarning($"[ServerRoomSettings] 状态拦截: 房间当前状态为 {Room.State}，无法强制结束");
+                LiteLogger.LogWarning("ServerRoomSettings", $"状态拦截: 房间当前状态为 {Room.State}，无法强制结束", Room.RoomId,
+                    session.SessionId);
                 return;
             }
 
             Room.EndGame();
 
             var notify = new S2C_GameEnded { WinnerSessionId = "房主强制中止" };
-            Broadcast(notify);
-        }
-
-        // 核心修复：升级为强类型泛型广播，彻底消灭魔数
-        private void Broadcast<T>(T msgObj) where T : class
-        {
-            if (!NetMessageMapper.TryGetMeta(typeof(T), out var meta))
-            {
-                Debug.LogError($"[ServerRoomSettings] 广播失败: 未找到类型 {typeof(T).Name} 的网络元数据");
-                return;
-            }
-
-            byte[] payload = _serializeFunc(msgObj);
-            var packet = new Packet(meta.Id, meta.Scope, Room.RoomId, payload);
-            Room.Broadcast(packet);
-        }
-
-        // 核心修复：升级为强类型泛型定向发送，彻底消灭魔数
-        private void SendTo<T>(Session session, T msgObj) where T : class
-        {
-            if (!NetMessageMapper.TryGetMeta(typeof(T), out var meta))
-            {
-                Debug.LogError($"[ServerRoomSettings] 发送失败: 未找到类型 {typeof(T).Name} 的网络元数据");
-                return;
-            }
-
-            byte[] payload = _serializeFunc(msgObj);
-            var packet = new Packet(meta.Id, meta.Scope, Room.RoomId, payload);
-            Room.SendTo(session, packet);
+            Room.BroadcastMessage(notify);
         }
     }
 }

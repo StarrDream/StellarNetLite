@@ -36,6 +36,7 @@ namespace StellarNet.Lite.Server.Core
 
             _gcRoomCache.Clear();
             _gcSessionCache.Clear();
+
             DateTime now = DateTime.UtcNow;
 
             foreach (var kvp in _rooms)
@@ -103,7 +104,7 @@ namespace StellarNet.Lite.Server.Core
 
         public void OnReceivePacket(int connectionId, Packet packet)
         {
-            Session session = GetSessionByConnectionId(connectionId);
+            Session session = TryGetSessionByConnectionId(connectionId);
             if (session == null)
             {
                 session = new Session(Guid.NewGuid().ToString("N"), "UNAUTH", connectionId);
@@ -155,10 +156,16 @@ namespace StellarNet.Lite.Server.Core
                 return;
             }
 
+            // 核心修复 (Point 1)：严格校验发包方向，服务端只能发 S2C
+            if (meta.Dir != NetDir.S2C)
+            {
+                Debug.LogError($"[ServerApp] 发送阻断: 协议 {meta.Id} 的方向为 {meta.Dir}，服务端只能发送 S2C 协议");
+                return;
+            }
+
             byte[] payload = _serializeFunc(msg);
             string roomId = meta.Scope == NetScope.Room ? session.CurrentRoomId : string.Empty;
             var packet = new Packet(0, meta.Id, meta.Scope, roomId, payload);
-
             _networkSender?.Invoke(session.ConnectionId, packet);
         }
 
@@ -167,7 +174,8 @@ namespace StellarNet.Lite.Server.Core
             if (string.IsNullOrEmpty(roomId)) return null;
             if (_rooms.ContainsKey(roomId)) return null;
 
-            var room = new Room(roomId, SendPacketToConnection);
+            // 核心修复：将 _serializeFunc 注入 Room，支撑房间级的强类型广播
+            var room = new Room(roomId, SendPacketToConnection, _serializeFunc);
             _rooms[roomId] = room;
             return room;
         }
@@ -256,7 +264,8 @@ namespace StellarNet.Lite.Server.Core
             }
         }
 
-        private Session GetSessionByConnectionId(int connectionId)
+        // 核心修复 (Point 2)：提供合法的 internal 查询接口，彻底消灭外部反射
+        internal Session TryGetSessionByConnectionId(int connectionId)
         {
             _connectionToSession.TryGetValue(connectionId, out var session);
             return session;

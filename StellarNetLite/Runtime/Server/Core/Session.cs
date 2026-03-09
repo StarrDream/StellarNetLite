@@ -1,4 +1,5 @@
 ﻿using System;
+using StellarNet.Lite.Shared.Infrastructure;
 using UnityEngine;
 
 namespace StellarNet.Lite.Server.Core
@@ -13,7 +14,6 @@ namespace StellarNet.Lite.Server.Core
         public bool IsOnline => ConnectionId >= 0;
         public DateTime LastOfflineTime { get; private set; }
 
-        // 架构说明：记录该会话最后一次成功处理的网络包序列号，用于底层防重放
         public uint LastReceivedSeq { get; private set; }
 
         public Session(string sessionId, string uid, int connectionId)
@@ -36,7 +36,7 @@ namespace StellarNet.Lite.Server.Core
         {
             if (string.IsNullOrEmpty(roomId))
             {
-                Debug.LogError($"[Session] 绑定房间失败: 传入的 roomId 为空，SessionId: {SessionId}");
+                LiteLogger.LogError("Session", "绑定房间失败: 传入的 roomId 为空", "-", SessionId);
                 return;
             }
 
@@ -64,7 +64,6 @@ namespace StellarNet.Lite.Server.Core
             LastOfflineTime = DateTime.UtcNow;
         }
 
-        // 架构说明：尝试消费传入的序列号。若序列号小于等于已记录的最大值，说明是重放包或乱序包，拒绝消费。
         public bool TryConsumeSeq(uint seq)
         {
             if (seq <= LastReceivedSeq)
@@ -74,6 +73,11 @@ namespace StellarNet.Lite.Server.Core
 
             LastReceivedSeq = seq;
             return true;
+        }
+
+        public void ResetSeq(uint seq)
+        {
+            LastReceivedSeq = seq;
         }
     }
 }
