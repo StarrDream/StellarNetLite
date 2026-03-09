@@ -26,8 +26,8 @@ namespace StellarNet.Lite.Shared.Infrastructure
         public int OfflineTimeoutRoomMinutes = 60;
         public int EmptyRoomTimeoutMinutes = 5;
 
-        // 核心新增 (Point 18)：最低允许的客户端版本号，用于阻断过旧版本的连接
-        public string MinClientVersion = "1.0.0";
+        //最低允许的客户端版本号，用于阻断过旧版本的连接
+        public string MinClientVersion = "0.0.1";
     }
 
     public static class NetConfigLoader

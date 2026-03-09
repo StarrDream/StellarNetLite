@@ -50,7 +50,7 @@ namespace StellarNet.Lite.Server.Modules
                     LiteLogger.LogWarning("ServerUserModule",
                         $"登录拦截: 客户端版本 {msg.ClientVersion} 低于最低要求 {_config.MinClientVersion}", "-", session.SessionId);
                     var rejectRes = new S2C_LoginResult
-                        { Success = false, Reason = $"客户端版本过旧，请更新至 {_config.MinClientVersion} 或以上版本" };
+                        { Success = false, Reason = $"客户端版本过旧，请在Unity中更新至 {_config.MinClientVersion} 或以上版本" };
                     _app.SendMessageToSession(session, rejectRes);
                     return;
                 }
