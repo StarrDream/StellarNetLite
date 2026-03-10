@@ -39,4 +39,18 @@ namespace StellarNet.Lite.Shared.Core
         {
         }
     }
+
+    // 核心新增：房间业务组件元数据特性，用于驱动常量表自动生成
+    [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
+    public sealed class RoomComponentAttribute : Attribute
+    {
+        public int Id { get; }
+        public string Name { get; }
+
+        public RoomComponentAttribute(int id, string name)
+        {
+            Id = id;
+            Name = name;
+        }
+    }
 }

@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using StellarNet.Lite.Shared.Core;
+using StellarNet.Lite.Shared.Infrastructure;
 using UnityEngine;
 
 namespace StellarNet.Lite.Client.Core
@@ -31,13 +32,13 @@ namespace StellarNet.Lite.Client.Core
         {
             if (file == null || file.Frames == null)
             {
-                Debug.LogError("[ClientReplayPlayer] 启动失败: 回放文件为空");
+                LiteLogger.LogError("[ClientReplayPlayer]",$"  启动失败: 回放文件为空");
                 return;
             }
 
             if (_app.State != ClientAppState.Idle)
             {
-                Debug.LogError($"[ClientReplayPlayer] 启动阻断: 当前状态为 {_app.State}，必须在 Idle 状态下才能进入回放");
+                LiteLogger.LogError($"[ClientReplayPlayer] ",$" 启动阻断: 当前状态为 {_app.State}，必须在 Idle 状态下才能进入回放");
                 return;
             }
 
@@ -48,8 +49,8 @@ namespace StellarNet.Lite.Client.Core
             _tickAccumulator = 0f;
 
             RestartSandbox();
-            Debug.Log(
-                $"[ClientReplayPlayer] 回放启动: 房间 {file.RoomId}, 总帧数 {file.Frames.Count}, 总 Tick {GetTotalTicks()}");
+            LiteLogger.LogInfo(
+                $"[ClientReplayPlayer] ",$" 回放启动: 房间 {file.RoomId}, 总帧数 {file.Frames.Count}, 总 Tick {GetTotalTicks()}");
         }
 
         public void StopReplay()
@@ -58,7 +59,7 @@ namespace StellarNet.Lite.Client.Core
             _isPlaying = false;
             _currentFile = null;
             _app.LeaveRoom();
-            Debug.Log("[ClientReplayPlayer] 回放结束，已清理沙盒");
+            LiteLogger.LogInfo("[ClientReplayPlayer]",$"  回放结束，已清理沙盒");
         }
 
         public void Update(float deltaTime)
@@ -76,7 +77,7 @@ namespace StellarNet.Lite.Client.Core
                 if (CurrentTick > GetTotalTicks())
                 {
                     IsPaused = true;
-                    Debug.Log("[ClientReplayPlayer] 回放播放完毕，已自动暂停");
+                    LiteLogger.LogInfo("[ClientReplayPlayer]",$"  回放播放完毕，已自动暂停");
                     break;
                 }
             }
@@ -119,7 +120,7 @@ namespace StellarNet.Lite.Client.Core
 
             if (!buildSuccess)
             {
-                Debug.LogError($"[ClientReplayPlayer] 回放房间 {_currentFile.RoomId} 本地装配失败，强制终止回放");
+                LiteLogger.LogError($"[ClientReplayPlayer]",$"  回放房间 {_currentFile.RoomId} 本地装配失败，强制终止回放");
                 StopReplay();
                 return;
             }

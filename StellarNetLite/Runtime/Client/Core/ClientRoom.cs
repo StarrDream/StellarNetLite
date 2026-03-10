@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
 using StellarNet.Lite.Shared.Core;
+using StellarNet.Lite.Shared.Infrastructure;
 
 namespace StellarNet.Lite.Client.Core
 {
@@ -28,7 +29,7 @@ namespace StellarNet.Lite.Client.Core
         {
             if (string.IsNullOrEmpty(roomId))
             {
-                Debug.LogError("[ClientRoom] 房间创建阻断: 传入的 roomId 为空，拒绝实例化");
+                LiteLogger.LogError("[ClientRoom] ",$" 房间创建阻断: 传入的 roomId 为空，拒绝实例化");
                 return null;
             }
 
@@ -39,7 +40,7 @@ namespace StellarNet.Lite.Client.Core
         {
             if (component == null)
             {
-                Debug.LogError($"[ClientRoom] 添加组件失败: component 为空，RoomId: {RoomId}");
+                LiteLogger.LogError($"[ClientRoom] ",$" 添加组件失败: component 为空，RoomId: {RoomId}");
                 return;
             }
 

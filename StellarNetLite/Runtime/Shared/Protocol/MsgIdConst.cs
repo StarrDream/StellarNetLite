@@ -43,5 +43,7 @@ namespace StellarNet.Lite.Shared.Protocol
         public const int S2C_DemoPlayerLeft = 1005;
         public const int S2C_DemoMoveSync = 1006;
         public const int S2C_DemoHpSync = 1007;
+        public const int C2S_WorkRunReq = 10000;
+        public const int S2C_WorkRunSync = 10001;
     }
 }

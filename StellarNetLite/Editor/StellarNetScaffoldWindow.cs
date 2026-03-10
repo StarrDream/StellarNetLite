@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using System.Text;
+using StellarNet.Lite.Shared.Infrastructure;
 using UnityEditor;
 using UnityEngine;
 
@@ -10,7 +11,6 @@ namespace StellarNet.Lite.Editor.Tools
     /// <summary>
     /// StellarNet Lite 业务脚手架生成器。
     /// 职责：提供可视化的 UI 界面，一键生成符合 MSV 架构与防重放规范的模板代码。
-    /// 核心修复 (Point 6)：全面翻新生成的模板代码，默认采用强类型发送器与房间级事件总线，彻底移除旧时代的序列化器注入与手动拼包。
     /// </summary>
     public sealed class StellarNetScaffoldWindow : EditorWindow
     {
@@ -25,6 +25,7 @@ namespace StellarNet.Lite.Editor.Tools
         private ModuleType _currentType = ModuleType.RoomComponent;
         private string _moduleName = "NewFeature";
         private int _startProtocolId = 10000;
+        private int _componentId = 10;
         private string _authorName = "Developer";
         private string _outputRootPath = "Assets/Scripts/Game";
         private string _baseNamespace = "Game";
@@ -91,14 +92,12 @@ namespace StellarNet.Lite.Editor.Tools
             GUILayout.Space(5);
             GUILayout.Label("目录与命名空间配置", _sectionStyle);
             GUILayout.Space(5);
-
             _outputRootPath = EditorGUILayout.TextField("输出根目录 (Root Path):", _outputRootPath);
             _baseNamespace = EditorGUILayout.TextField("业务命名空间 (Namespace):", _baseNamespace);
 
             GUILayout.Space(15);
             GUILayout.Label("业务模块配置", _sectionStyle);
             GUILayout.Space(5);
-
             _currentType = (ModuleType)EditorGUILayout.EnumPopup("模块类型 (Type):", _currentType);
 
             EditorGUI.BeginChangeCheck();
@@ -110,12 +109,17 @@ namespace StellarNet.Lite.Editor.Tools
             }
 
             _startProtocolId = EditorGUILayout.IntField("起始协议 ID:", _startProtocolId);
+
+            if (_currentType == ModuleType.RoomComponent)
+            {
+                _componentId = EditorGUILayout.IntField("组件 ID (ComponentId):", _componentId);
+            }
+
             _authorName = EditorGUILayout.TextField("开发者 (Author):", _authorName);
 
             GUILayout.Space(15);
             GUILayout.Label("生成选项", _sectionStyle);
             GUILayout.Space(5);
-
             _genProtocol = EditorGUILayout.Toggle("生成 Shared 协议定义", _genProtocol);
             _genServer = EditorGUILayout.Toggle("生成 Server 端逻辑", _genServer);
             _genClient = EditorGUILayout.Toggle("生成 Client 端逻辑", _genClient);
@@ -144,21 +148,28 @@ namespace StellarNet.Lite.Editor.Tools
         {
             if (string.IsNullOrEmpty(_moduleName))
             {
-                Debug.LogError("[Scaffold] 生成阻断: 模块名称不能为空");
+                LiteLogger.LogError("[Scaffold]", $" 生成阻断: 模块名称不能为空");
                 EditorUtility.DisplayDialog("错误", "模块名称不能为空！", "确定");
                 return;
             }
 
             if (_startProtocolId <= 0)
             {
-                Debug.LogError($"[Scaffold] 生成阻断: 协议 ID {_startProtocolId} 非法，必须大于 0");
+                LiteLogger.LogError($"[Scaffold] ", $"生成阻断: 协议 ID {_startProtocolId} 非法，必须大于 0");
                 EditorUtility.DisplayDialog("错误", "协议 ID 必须大于 0！", "确定");
+                return;
+            }
+
+            if (_currentType == ModuleType.RoomComponent && _componentId <= 0)
+            {
+                LiteLogger.LogError($"[Scaffold]", $" 生成阻断: 组件 ID {_componentId} 非法，必须大于 0");
+                EditorUtility.DisplayDialog("错误", "组件 ID 必须大于 0！", "确定");
                 return;
             }
 
             if (string.IsNullOrEmpty(_outputRootPath))
             {
-                Debug.LogError("[Scaffold] 生成阻断: 输出根目录不能为空");
+                LiteLogger.LogError("[Scaffold] ", $" 生成阻断: 输出根目录不能为空");
                 EditorUtility.DisplayDialog("错误", "输出根目录不能为空！", "确定");
                 return;
             }
@@ -179,14 +190,14 @@ namespace StellarNet.Lite.Editor.Tools
                 }
 
                 AssetDatabase.Refresh();
-                Debug.Log($"[Scaffold] 业务模块 {_moduleName} 生成完毕，输出路径: {_outputRootPath}");
+                LiteLogger.LogInfo($"[Scaffold] ", $" 业务模块 {_moduleName} 生成完毕，输出路径: {_outputRootPath}");
                 EditorUtility.DisplayDialog("成功", $"业务模块 {_moduleName} 生成完毕！\n请前往 StellarNetMirrorManager.cs 进行装配注册。",
                     "确定");
             }
             catch (Exception e)
             {
                 // 允许的 Try-Catch：处理不可控的底层文件 I/O 异常
-                Debug.LogError($"[Scaffold] 文件写入异常: {e.Message}");
+                LiteLogger.LogError($"[Scaffold] ", $" 文件写入异常: {e.Message}");
                 EditorUtility.DisplayDialog("致命错误", $"生成过程中发生文件读写异常:\n{e.Message}", "确定");
             }
         }
@@ -251,6 +262,7 @@ namespace StellarNet.Lite.Editor.Tools
             sb.AppendLine("");
             sb.AppendLine($"namespace {ns}");
             sb.AppendLine("{");
+            sb.AppendLine($"    [RoomComponent({_componentId}, \"{_moduleName}\")]");
             sb.AppendLine($"    public sealed class Server{_moduleName}Component : RoomComponent");
             sb.AppendLine("    {");
             sb.AppendLine("        public override void OnInit()");
@@ -285,6 +297,7 @@ namespace StellarNet.Lite.Editor.Tools
             sb.AppendLine("");
             sb.AppendLine($"namespace {ns}");
             sb.AppendLine("{");
+            sb.AppendLine($"    [RoomComponent({_componentId}, \"{_moduleName}\")]");
             sb.AppendLine($"    public sealed class Client{_moduleName}Component : ClientRoomComponent");
             sb.AppendLine("    {");
             sb.AppendLine("        public override void OnInit()");
@@ -389,7 +402,7 @@ namespace StellarNet.Lite.Editor.Tools
 
             if (File.Exists(path))
             {
-                Debug.LogWarning($"[Scaffold] 文件已存在，跳过生成以防止覆盖手写业务逻辑: {path}");
+                LiteLogger.LogWarning($"[Scaffold]", $"  文件已存在，跳过生成以防止覆盖手写业务逻辑: {path}");
                 return;
             }
 

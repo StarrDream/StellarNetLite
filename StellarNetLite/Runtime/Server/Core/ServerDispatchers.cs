@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using StellarNet.Lite.Shared.Core;
+using StellarNet.Lite.Shared.Infrastructure;
 using UnityEngine;
 
 namespace StellarNet.Lite.Server.Core
@@ -14,7 +15,7 @@ namespace StellarNet.Lite.Server.Core
         {
             if (handler == null)
             {
-                Debug.LogError($"[GlobalDispatcher] 注册失败: 传入的 handler 为空，MsgId: {msgId}");
+                LiteLogger.LogError($"[GlobalDispatcher] ",$" 注册失败: 传入的 handler 为空，MsgId: {msgId}");
                 return;
             }
 
@@ -33,7 +34,7 @@ namespace StellarNet.Lite.Server.Core
         {
             if (session == null)
             {
-                Debug.LogError($"[GlobalDispatcher] 分发失败: session 为空");
+                LiteLogger.LogError($"[GlobalDispatcher]",$"  分发失败: session 为空");
                 return;
             }
 
@@ -43,7 +44,7 @@ namespace StellarNet.Lite.Server.Core
             }
             else
             {
-                Debug.LogWarning($"[GlobalDispatcher] 未找到 MsgId {packet.MsgId} 的处理函数");
+                LiteLogger.LogWarning($"[GlobalDispatcher]",$"  未找到 MsgId {packet.MsgId} 的处理函数");
             }
         }
     }
@@ -64,7 +65,7 @@ namespace StellarNet.Lite.Server.Core
         {
             if (handler == null)
             {
-                Debug.LogError($"[RoomDispatcher] 注册失败: 传入的 handler 为空，RoomId: {_roomId}, MsgId: {msgId}");
+                LiteLogger.LogError($"[RoomDispatcher]",$"  注册失败: 传入的 handler 为空，RoomId: {_roomId}, MsgId: {msgId}");
                 return;
             }
 
@@ -83,7 +84,7 @@ namespace StellarNet.Lite.Server.Core
         {
             if (session == null)
             {
-                Debug.LogError($"[RoomDispatcher] 分发失败: session 为空，RoomId: {_roomId}");
+                LiteLogger.LogError($"[RoomDispatcher]",$"  分发失败: session 为空，RoomId: {_roomId}");
                 return;
             }
 
@@ -93,7 +94,7 @@ namespace StellarNet.Lite.Server.Core
             }
             else
             {
-                Debug.LogWarning($"[RoomDispatcher] 未找到 MsgId {packet.MsgId} 的处理函数，RoomId: {_roomId}");
+                LiteLogger.LogWarning($"[RoomDispatcher]",$"  未找到 MsgId {packet.MsgId} 的处理函数，RoomId: {_roomId}");
             }
         }
 

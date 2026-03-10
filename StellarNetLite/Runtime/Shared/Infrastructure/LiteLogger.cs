@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System.Diagnostics;
+using Debug = UnityEngine.Debug;
 
 namespace StellarNet.Lite.Shared.Infrastructure
 {
@@ -9,18 +10,21 @@ namespace StellarNet.Lite.Shared.Infrastructure
     /// </summary>
     public static class LiteLogger
     {
+        [Conditional("ENABLE_LOG")]
         public static void LogInfo(string module, string message, string roomId = "-", string sessionId = "-",
             string extraContext = "")
         {
             Debug.Log(FormatMessage("INFO", module, message, roomId, sessionId, extraContext));
         }
 
+        [Conditional("ENABLE_LOG")]
         public static void LogWarning(string module, string message, string roomId = "-", string sessionId = "-",
             string extraContext = "")
         {
             Debug.LogWarning(FormatMessage("WARN", module, message, roomId, sessionId, extraContext));
         }
 
+        [Conditional("ENABLE_LOG")]
         public static void LogError(string module, string message, string roomId = "-", string sessionId = "-",
             string extraContext = "")
         {

@@ -71,7 +71,7 @@ namespace StellarNet.Lite.GameDemo.Client
                 if (_autoLeaveTimer <= 0)
                 {
                     _autoLeaveTimer = -1f;
-                    Debug.Log("[DemoGameView] 倒计时结束，自动发送离开房间请求");
+                    LiteLogger.LogInfo("[DemoGameView] ", $" 倒计时结束，自动发送离开房间请求");
 
                     // 核心修复：使用强类型发送器，彻底消灭 Packet 拼装与魔数 204
                     app.SendMessage(new C2S_LeaveRoom());

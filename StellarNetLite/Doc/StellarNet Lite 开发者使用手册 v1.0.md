@@ -112,18 +112,14 @@ StellarNet Lite 不是一个追求“黑盒自动同步”的网络方案。
 ---
 
 ### 5. 房间组件化装配
-
 房间不是靠一个巨大的 `RoomLogic.cs` 处理所有事情，而是采用 **Room Component** 横向扩展模式。
+通过在类上标记 `[RoomComponent(Id, Name)]` 特性，框架会自动生成常量表。例如：
+- `ComponentIdConst.RoomSettings`：房间基础设置组件
+- `ComponentIdConst.DemoGame`：Demo 战斗组件
+- `ComponentIdConst.RoomEmoji`：房间表情组件
 
-例如：
-
-- `1`：房间基础设置组件
-- `100`：Demo 战斗组件
-- `2`：房间表情组件
-- `3`：房间聊天组件
-
-建房时通过 `ComponentIds` 指定房间装配内容。  
-这样新增功能时只需要新增组件，不需要改已有巨石类。
+建房时通过传入 `ComponentIds` 数组（如 `new int[] { ComponentIdConst.RoomSettings }`）动态装配。
+这样新增功能时只需要新增组件并打上特性标签，不需要修改已有巨石类，也无需死记硬背数字 ID。
 
 ---
 
@@ -379,17 +375,12 @@ Assets/StellarNetLite
 
 ---
 
-### 5. 重新生成协议常量表
-
-若新增了 `[NetMsg]` 协议，执行：
-
-- `StellarNet/Lite 强制重新生成协议常量表`
-
-编辑器会自动扫描协议 ID，并更新：
-
+### 5. 重新生成协议与组件常量表
+若新增了 `[NetMsg]` 协议或 `[RoomComponent]` 业务组件，执行：
+- `StellarNet/Lite 强制重新生成协议与组件常量表`
+  编辑器会自动扫描特性元数据，进行防冲突校验，并更新：
 - `MsgIdConst.cs`
-
-注意：当前主发送链路已经是强类型发送器，`MsgIdConst.cs` 主要用于辅助审查和调试，不建议业务层继续依赖手写魔数发包。
+- `ComponentIdConst.cs`
 
 ---
 

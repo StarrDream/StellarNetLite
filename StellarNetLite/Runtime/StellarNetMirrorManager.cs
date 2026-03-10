@@ -2,6 +2,7 @@
 using UnityEngine;
 using Mirror;
 using StellarNet.Lite.Shared.Core;
+using StellarNet.Lite.Shared.Protocol;
 using StellarNet.Lite.Shared.Infrastructure;
 using StellarNet.Lite.Shared.Binders;
 using StellarNet.Lite.Server.Core;
@@ -57,16 +58,20 @@ namespace StellarNet.Lite.Shared.Infrastructure
 
         protected virtual void OnRegisterServerComponents()
         {
-            ServerRoomFactory.Register(1, () => new ServerRoomSettingsComponent(SerializeFunc));
-            ServerRoomFactory.Register(100, () => new ServerDemoGameComponent(SerializeFunc));
+            // 核心修复：彻底消灭魔法数字，使用自动生成的强类型常量
+            ServerRoomFactory.Register(ComponentIdConst.RoomSettings, () => new ServerRoomSettingsComponent(SerializeFunc));
+            ServerRoomFactory.Register(ComponentIdConst.DemoGame, () => new ServerDemoGameComponent(SerializeFunc));
+
             ServerRoomFactory.ComponentBinder = (comp, dispatcher) =>
                 AutoBinder.BindServerComponent(comp, dispatcher, DeserializeFunc);
         }
 
         protected virtual void OnRegisterClientComponents()
         {
-            ClientRoomFactory.Register(1, () => new ClientRoomSettingsComponent());
-            ClientRoomFactory.Register(100, () => new ClientDemoGameComponent());
+            // 核心修复：彻底消灭魔法数字，使用自动生成的强类型常量
+            ClientRoomFactory.Register(ComponentIdConst.RoomSettings, () => new ClientRoomSettingsComponent());
+            ClientRoomFactory.Register(ComponentIdConst.DemoGame, () => new ClientDemoGameComponent());
+
             ClientRoomFactory.ComponentBinder = (comp, dispatcher) =>
                 AutoBinder.BindClientComponent(comp, dispatcher, DeserializeFunc);
         }
@@ -76,10 +81,8 @@ namespace StellarNet.Lite.Shared.Infrastructure
             base.OnStartServer();
 
             NetworkServer.tickRate = _netConfig.TickRate;
-
             ServerApp = new ServerApp(MirrorServerSend, SerializeFunc);
 
-            // 核心修复：将 _netConfig 注入 ServerUserModule 以支撑版本校验
             var userModule = new ServerUserModule(ServerApp, MirrorServerSend, SerializeFunc, _netConfig);
             var roomModule = new ServerRoomModule(ServerApp, MirrorServerSend, SerializeFunc);
             var lobbyModule = new ServerLobbyModule(ServerApp, MirrorServerSend, SerializeFunc);
@@ -106,6 +109,7 @@ namespace StellarNet.Lite.Shared.Infrastructure
                     ServerApp.UnbindConnection(session);
                 }
             }
+
             base.OnServerDisconnect(conn);
         }
 
@@ -151,6 +155,7 @@ namespace StellarNet.Lite.Shared.Infrastructure
                 ClientApp.LeaveRoom();
                 ClientApp.Session.Clear();
             }
+
             base.OnClientDisconnect();
         }
 

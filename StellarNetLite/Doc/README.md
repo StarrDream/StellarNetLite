@@ -412,19 +412,16 @@ git clone https://github.com/StarrDream/StellarNetLite.git
 
 ---
 
-### 6. 协议扫描与常量表生成
-
-新增协议后，可执行：
-
-- `StellarNet/Lite 强制重新生成协议常量表`
-
+### 6. 协议与组件常量表生成
+新增协议或房间组件后，可执行：
+- `StellarNet/Lite 强制重新生成协议与组件常量表`
+  
+  
 编辑器会自动：
-
-- 扫描所有 `[NetMsg]`
-- 检查协议 ID 冲突
-- 更新 `MsgIdConst.cs`
-
-注意：当前主发送链路已经是强类型发送器，`MsgIdConst.cs` 主要用于辅助审查和调试，不建议再作为主发包方式。
+- 扫描所有 `[NetMsg]` 与 `[RoomComponent]` 特性
+- 检查双端协议 ID 与组件 ID 是否冲突
+- 自动更新 `MsgIdConst.cs` 与 `ComponentIdConst.cs`
+  注意：当前主发送链路与组件装配已全面采用强类型与常量化，彻底告别魔数硬编码。
 
 ---
 

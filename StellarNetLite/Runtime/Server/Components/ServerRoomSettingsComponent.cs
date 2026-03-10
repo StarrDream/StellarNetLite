@@ -7,15 +7,15 @@ using StellarNet.Lite.Shared.Infrastructure;
 
 namespace StellarNet.Lite.Server.Components
 {
+    // 核心新增：添加组件元数据特性，驱动常量表生成
+    [RoomComponent(1, "RoomSettings")]
     public sealed class ServerRoomSettingsComponent : RoomComponent
     {
         private readonly Dictionary<string, bool> _readyStates = new Dictionary<string, bool>();
         private string _ownerSessionId;
 
-        // 核心重构：彻底移除业务组件内部的序列化器，全面拥抱 Room 基类的强类型发送器
         public ServerRoomSettingsComponent(Func<object, byte[]> serializeFunc)
         {
-            // 构造函数保留签名以兼容工厂注册，但不再持有序列化器
         }
 
         public override void OnInit()
@@ -117,7 +117,6 @@ namespace StellarNet.Lite.Server.Components
             }
 
             var msg = new S2C_RoomSnapshot { Members = members.ToArray() };
-            // 架构规范：定向发送快照，默认不录入回放时间轴
             Room.SendMessageTo(session, msg);
         }
 
@@ -142,7 +141,6 @@ namespace StellarNet.Lite.Server.Components
         public void OnC2S_SetReady(Session session, C2S_SetReady msg)
         {
             if (session == null || msg == null) return;
-
             if (!_readyStates.ContainsKey(session.SessionId)) return;
 
             _readyStates[session.SessionId] = msg.IsReady;
@@ -180,6 +178,7 @@ namespace StellarNet.Lite.Server.Components
             }
 
             Room.StartGame();
+
             var notify = new S2C_GameStarted { StartUnixTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds() };
             Room.BroadcastMessage(notify);
         }

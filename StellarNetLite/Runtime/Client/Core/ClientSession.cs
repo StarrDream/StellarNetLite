@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using StellarNet.Lite.Shared.Infrastructure;
+using UnityEngine;
 
 namespace StellarNet.Lite.Client.Core
 {
@@ -14,7 +15,7 @@ namespace StellarNet.Lite.Client.Core
         {
             if (string.IsNullOrEmpty(sessionId))
             {
-                Debug.LogError("[ClientSession] 登录成功回调失败: 下发的 SessionId 为空");
+                LiteLogger.LogError("[ClientSession]",$"  登录成功回调失败: 下发的 SessionId 为空");
                 return;
             }
 
@@ -26,7 +27,7 @@ namespace StellarNet.Lite.Client.Core
         {
             if (string.IsNullOrEmpty(roomId))
             {
-                Debug.LogError("[ClientSession] 绑定房间失败: 传入的 roomId 为空");
+                LiteLogger.LogError("[ClientSession] ",$" 绑定房间失败: 传入的 roomId 为空");
                 return;
             }
 

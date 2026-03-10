@@ -176,16 +176,13 @@ StellarNet Lite 是一个面向 Unity 中小型联机项目的轻量级房间网
 
 ---
 
-## 3.7 解决了协议 ID 管理混乱的问题
-
+## 3.7 解决了协议与组件 ID 管理混乱的问题
 通过：
-
 - `LiteProtocolScanner`
-- 自动扫描 `[NetMsg]`
-- 冲突检测
-- 自动生成 `MsgIdConst.cs`
-
-框架把协议号管理从“人工维护 Excel 表”推进成了可编译期辅助治理的流程。
+- 自动扫描 `[NetMsg]` 与 `[RoomComponent]`
+- 双端冲突检测与阻断
+- 自动生成 `MsgIdConst.cs` 与 `ComponentIdConst.cs`
+  框架把网络标识的管理从“人工维护 Excel 表与死记硬背魔数”推进成了编译期自动生成与辅助治理的闭环流程。
 
 ---
 
@@ -863,19 +860,16 @@ Editor 工具层是当前框架非常重要的一部分。
 ---
 
 ## 8.1 LiteProtocolScanner
-
 功能包括：
-
-1. 扫描所有 `[NetMsg]`
-2. 检查 `MsgId` 是否冲突
-3. 辅助生成 `MsgIdConst.cs`
-4. 在开发期尽早发现协议管理错误
-
-它解决的问题是：
-
-- 多人协作时协议号撞车
-- 漏协议
+1. 扫描所有 `[NetMsg]` 与 `[RoomComponent]` 特性
+2. 检查 `MsgId` 与 `ComponentId` 是否存在双端冲突或命名错位
+3. 辅助生成 `MsgIdConst.cs` 与 `ComponentIdConst.cs`
+4. 在开发期尽早发现标识符管理错误
+   它解决的问题是：
+- 多人协作时协议号或组件号撞车
+- 漏写协议
 - 手写常量表不一致
+- 业务层充斥魔法数字导致可读性极差
 
 ---
 

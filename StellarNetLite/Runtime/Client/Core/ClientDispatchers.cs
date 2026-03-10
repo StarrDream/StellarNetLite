@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using StellarNet.Lite.Shared.Core;
+using StellarNet.Lite.Shared.Infrastructure;
 using UnityEngine;
 
 namespace StellarNet.Lite.Client.Core
@@ -13,7 +14,7 @@ namespace StellarNet.Lite.Client.Core
         {
             if (handler == null)
             {
-                Debug.LogError($"[ClientGlobalDispatcher] 注册失败: 传入的 handler 为空，MsgId: {msgId}");
+                LiteLogger.LogError($"[ClientGlobalDispatcher]",$"  注册失败: 传入的 handler 为空，MsgId: {msgId}");
                 return;
             }
 
@@ -36,7 +37,7 @@ namespace StellarNet.Lite.Client.Core
             }
             else
             {
-                Debug.LogWarning($"[ClientGlobalDispatcher] 未找到 MsgId {packet.MsgId} 的处理函数，消息已忽略");
+                LiteLogger.LogWarning($"[ClientGlobalDispatcher] ",$" 未找到 MsgId {packet.MsgId} 的处理函数，消息已忽略");
             }
         }
     }
@@ -55,7 +56,7 @@ namespace StellarNet.Lite.Client.Core
         {
             if (handler == null)
             {
-                Debug.LogError($"[ClientRoomDispatcher] 注册失败: 传入的 handler 为空，RoomId: {_roomId}, MsgId: {msgId}");
+                LiteLogger.LogError($"[ClientRoomDispatcher]",$"  注册失败: 传入的 handler 为空，RoomId: {_roomId}, MsgId: {msgId}");
                 return;
             }
 
@@ -78,7 +79,7 @@ namespace StellarNet.Lite.Client.Core
             }
             else
             {
-                Debug.LogWarning($"[ClientRoomDispatcher] 未找到 MsgId {packet.MsgId} 的处理函数，RoomId: {_roomId}，消息已忽略");
+                LiteLogger.LogWarning($"[ClientRoomDispatcher]",$"  未找到 MsgId {packet.MsgId} 的处理函数，RoomId: {_roomId}，消息已忽略");
             }
         }
 

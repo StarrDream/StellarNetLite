@@ -10,17 +10,15 @@ using StellarNet.Lite.Shared.Infrastructure;
 
 namespace StellarNet.Lite.Demo
 {
-    /// <summary>
-    /// 核心重构 (Point 15)：物理边界剥离。
-    /// 本脚本现在仅作为纯粹的客户端消费方，不再承担服务端上帝视角的管理职责。
-    /// </summary>
     public class StellarNetDemoUI : MonoBehaviour
     {
         private StellarNetMirrorManager _manager;
         private string _inputAccountId = "Player_1001";
         private string _inputRoomName = "我的对战房间";
+
         private Vector2 _clientScroll;
         private ClientReplayPlayer _replayPlayer;
+
         private RoomBriefInfo[] _roomList = new RoomBriefInfo[0];
         private string[] _replayList = new string[0];
         private string _downloadingReplayId = string.Empty;
@@ -99,6 +97,7 @@ namespace StellarNet.Lite.Demo
             GUILayout.Label("<b><size=16>StellarNet 综合测试台</size></b>",
                 new GUIStyle(GUI.skin.label) { richText = true, alignment = TextAnchor.MiddleCenter });
             GUILayout.Space(20);
+
             if (GUILayout.Button("Host 模式 (Server + Client 同进程)", GUILayout.Height(40))) _manager.StartHost();
             GUILayout.Space(10);
             if (GUILayout.Button("Server Only (独立服务端)", GUILayout.Height(40))) _manager.StartServer();
@@ -130,9 +129,9 @@ namespace StellarNet.Lite.Demo
                 _inputAccountId = GUILayout.TextField(_inputAccountId);
                 GUILayout.EndHorizontal();
                 GUILayout.Space(10);
+
                 if (GUILayout.Button("发起登录 (Login)", GUILayout.Height(40)))
                 {
-                    // 核心修复 (Point 18)：发送登录请求时附带客户端版本号
                     app.SendMessage(new C2S_Login { AccountId = _inputAccountId, ClientVersion = Application.version });
                 }
             }
@@ -164,17 +163,19 @@ namespace StellarNet.Lite.Demo
                 _inputRoomName = GUILayout.TextField(_inputRoomName);
                 GUILayout.EndHorizontal();
                 GUILayout.Space(5);
-                if (GUILayout.Button("创建基础房间 (仅 Settings: ID 1)", GUILayout.Height(30)))
+
+                // 核心修复：彻底消灭魔法数字，使用自动生成的强类型常量
+                if (GUILayout.Button("创建基础房间 (仅 Settings)", GUILayout.Height(30)))
                 {
-                    app.SendMessage(new C2S_CreateRoom { RoomName = _inputRoomName, ComponentIds = new int[] { 1 } });
+                    app.SendMessage(new C2S_CreateRoom { RoomName = _inputRoomName, ComponentIds = new int[] { ComponentIdConst.RoomSettings } });
                 }
 
                 GUILayout.Space(5);
                 GUI.color = Color.green;
-                if (GUILayout.Button("创建对战房间 (Settings + GameDemo: ID 1, 100)", GUILayout.Height(40)))
+                if (GUILayout.Button("创建对战房间 (Settings + GameDemo)", GUILayout.Height(40)))
                 {
                     app.SendMessage(new C2S_CreateRoom
-                        { RoomName = _inputRoomName, ComponentIds = new int[] { 1, 100 } });
+                        { RoomName = _inputRoomName, ComponentIds = new int[] { ComponentIdConst.RoomSettings, ComponentIdConst.DemoGame } });
                 }
 
                 GUI.color = Color.white;
@@ -237,10 +238,9 @@ namespace StellarNet.Lite.Demo
                     {
                         GUILayout.BeginHorizontal("box");
                         GUILayout.Label($"录像 ID:\n{replayId}");
-
                         bool isDownloading = _downloadingReplayId == replayId;
-                        GUI.enabled = !isDownloading && string.IsNullOrEmpty(_downloadingReplayId);
 
+                        GUI.enabled = !isDownloading && string.IsNullOrEmpty(_downloadingReplayId);
                         if (GUILayout.Button(isDownloading ? "下载中..." : "下载并播放", GUILayout.Width(90),
                                 GUILayout.Height(35)))
                         {

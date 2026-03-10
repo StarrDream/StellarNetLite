@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using StellarNet.Lite.Shared.Infrastructure;
 using UnityEngine;
 
 namespace StellarNet.Lite.Server.Core
@@ -15,13 +16,13 @@ namespace StellarNet.Lite.Server.Core
         {
             if (componentBuilder == null)
             {
-                Debug.LogError($"[ServerRoomFactory] 注册失败: 传入的构造器为空, ComponentId: {componentId}");
+                LiteLogger.LogError($"[ServerRoomFactory]",$"  注册失败: 传入的构造器为空, ComponentId: {componentId}");
                 return;
             }
 
             if (_registry.ContainsKey(componentId))
             {
-                Debug.LogError($"[ServerRoomFactory] 注册失败: ComponentId {componentId} 已存在，禁止重复注册");
+                LiteLogger.LogError($"[ServerRoomFactory] ",$" 注册失败: ComponentId {componentId} 已存在，禁止重复注册");
                 return;
             }
 
@@ -37,13 +38,13 @@ namespace StellarNet.Lite.Server.Core
         {
             if (room == null)
             {
-                Debug.LogError("[ServerRoomFactory] 装配失败: 传入的 room 为空");
+                LiteLogger.LogError("[ServerRoomFactory]",$"  装配失败: 传入的 room 为空");
                 return false;
             }
 
             if (componentIds == null || componentIds.Length == 0)
             {
-                Debug.LogWarning($"[ServerRoomFactory] 装配警告: 房间 {room.RoomId} 的组件清单为空");
+                LiteLogger.LogWarning($"[ServerRoomFactory] ",$" 装配警告: 房间 {room.RoomId} 的组件清单为空");
                 return true;
             }
 
@@ -57,7 +58,7 @@ namespace StellarNet.Lite.Server.Core
                 }
                 else
                 {
-                    Debug.LogError($"[ServerRoomFactory] 装配致命阻断: 未知的 ComponentId {id}，拒绝创建残缺房间");
+                    LiteLogger.LogError($"[ServerRoomFactory] ",$" 装配致命阻断: 未知的 ComponentId {id}，拒绝创建残缺房间");
                     return false;
                 }
             }
@@ -76,7 +77,7 @@ namespace StellarNet.Lite.Server.Core
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ServerRoomFactory] 房间 {room.RoomId} 装配期间发生异常，触发原子回滚: {e.Message}\n{e.StackTrace}");
+                LiteLogger.LogError($"[ServerRoomFactory] ",$" 房间 {room.RoomId} 装配期间发生异常，触发原子回滚: {e.Message}\n{e.StackTrace}");
                 room.Destroy();
                 return false;
             }

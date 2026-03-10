@@ -20,13 +20,13 @@ namespace StellarNet.Lite.Server.Infrastructure
         {
             if (replay == null || config == null)
             {
-                Debug.LogError("[ServerReplayStorage] 保存失败: 传入的录像文件或配置为空");
+                LiteLogger.LogError("[ServerReplayStorage] ",$" 保存失败: 传入的录像文件或配置为空");
                 return;
             }
 
             if (string.IsNullOrEmpty(replay.ReplayId))
             {
-                Debug.LogError("[ServerReplayStorage] 保存失败: ReplayId 为空");
+                LiteLogger.LogError("[ServerReplayStorage] ",$" 保存失败: ReplayId 为空");
                 return;
             }
 
@@ -46,7 +46,7 @@ namespace StellarNet.Lite.Server.Infrastructure
                 string json = JsonConvert.SerializeObject(replay, Formatting.None);
                 File.WriteAllText(fullPath, json);
 
-                Debug.Log($"[ServerReplayStorage] 录像保存成功: {fileName}, 帧数: {replay.Frames.Count}");
+                LiteLogger.LogInfo($"[ServerReplayStorage] ",$" 录像保存成功: {fileName}, 帧数: {replay.Frames.Count}");
 
                 // 核心防御：保存成功后，立即触发滚动清理逻辑
                 EnforceRollingLimit(folderPath, config.MaxReplayFiles);
@@ -54,7 +54,7 @@ namespace StellarNet.Lite.Server.Infrastructure
             catch (Exception e)
             {
                 // 允许的 Try-Catch：底层 I/O 异常不可控，必须捕获防止主线程崩溃
-                Debug.LogError($"[ServerReplayStorage] 录像保存异常: {e.Message}");
+                LiteLogger.LogError($"[ServerReplayStorage] ",$" 录像保存异常: {e.Message}");
             }
         }
 
@@ -79,12 +79,12 @@ namespace StellarNet.Lite.Server.Infrastructure
                 for (int i = maxFiles; i < sortedFiles.Count; i++)
                 {
                     sortedFiles[i].Delete();
-                    Debug.Log($"[ServerReplayStorage] 滚动清理: 已删除过期录像文件 {sortedFiles[i].Name}");
+                    LiteLogger.LogInfo($"[ServerReplayStorage] ",$" 滚动清理: 已删除过期录像文件 {sortedFiles[i].Name}");
                 }
             }
             catch (Exception e)
             {
-                Debug.LogError($"[ServerReplayStorage] 滚动清理异常: {e.Message}");
+                LiteLogger.LogError($"[ServerReplayStorage] ",$" 滚动清理异常: {e.Message}");
             }
         }
     }

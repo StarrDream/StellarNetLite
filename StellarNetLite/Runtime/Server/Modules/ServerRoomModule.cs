@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using StellarNet.Lite.Shared.Core;
 using StellarNet.Lite.Shared.Protocol;
 using StellarNet.Lite.Server.Core;
+using StellarNet.Lite.Shared.Infrastructure;
 using UnityEngine;
 
 namespace StellarNet.Lite.Server.Modules
@@ -50,7 +51,7 @@ namespace StellarNet.Lite.Server.Modules
             if (!buildSuccess)
             {
                 _app.DestroyRoom(roomId);
-                Debug.LogError($"[ServerRoomModule] 房间 {roomId} 组件装配失败，已强制销毁该残缺实例");
+                LiteLogger.LogError($"[ServerRoomModule]",$"  房间 {roomId} 组件装配失败，已强制销毁该残缺实例");
                 var failMsg = new S2C_CreateRoomResult { Success = false, Reason = "房间组件装配失败，存在非法组件" };
                 _app.SendMessageToSession(session, failMsg);
                 return;
@@ -109,33 +110,33 @@ namespace StellarNet.Lite.Server.Modules
 
             if (string.IsNullOrEmpty(msg.RoomId))
             {
-                Debug.LogError($"[ServerRoomModule] 握手阻断: RoomId 为空, SessionId: {session.SessionId}");
+                LiteLogger.LogError($"[ServerRoomModule] ",$" 握手阻断: RoomId 为空, SessionId: {session.SessionId}");
                 return;
             }
 
             if (string.IsNullOrEmpty(session.AuthorizedRoomId) || session.AuthorizedRoomId != msg.RoomId)
             {
-                Debug.LogError(
-                    $"[ServerRoomModule] 握手阻断: 越权访问或授权已失效。目标房间: {msg.RoomId}, 授权房间: {session.AuthorizedRoomId}");
+                LiteLogger.LogError(
+                    $"[ServerRoomModule]",$"  握手阻断: 越权访问或授权已失效。目标房间: {msg.RoomId}, 授权房间: {session.AuthorizedRoomId}");
                 return;
             }
 
             if (!string.IsNullOrEmpty(session.CurrentRoomId))
             {
-                Debug.LogError($"[ServerRoomModule] 握手阻断: 玩家已在房间 {session.CurrentRoomId} 中，非法调用首次加入握手");
+                LiteLogger.LogError($"[ServerRoomModule]",$"  握手阻断: 玩家已在房间 {session.CurrentRoomId} 中，非法调用首次加入握手");
                 return;
             }
 
             Room room = _app.GetRoom(msg.RoomId);
             if (room == null)
             {
-                Debug.LogError($"[ServerRoomModule] 握手阻断: 目标房间不存在, RoomId: {msg.RoomId}");
+                LiteLogger.LogError($"[ServerRoomModule] ",$" 握手阻断: 目标房间不存在, RoomId: {msg.RoomId}");
                 return;
             }
 
             room.AddMember(session);
             session.ClearAuthorizedRoom();
-            Debug.Log($"[ServerRoomModule] 客户端 {session.SessionId} 首次装配就绪，正式加入房间 {msg.RoomId} 并下发快照");
+            LiteLogger.LogInfo($"[ServerRoomModule] ",$" 客户端 {session.SessionId} 首次装配就绪，正式加入房间 {msg.RoomId} 并下发快照");
         }
 
         [NetHandler]
@@ -154,7 +155,7 @@ namespace StellarNet.Lite.Server.Modules
                 if (room.MemberCount == 0)
                 {
                     _app.DestroyRoom(roomId);
-                    Debug.Log($"[ServerRoomModule] 房间 {roomId} 已空，执行自动销毁");
+                    LiteLogger.LogInfo($"[ServerRoomModule] ",$" 房间 {roomId} 已空，执行自动销毁");
                 }
             }
 

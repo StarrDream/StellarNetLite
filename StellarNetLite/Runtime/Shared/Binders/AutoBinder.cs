@@ -3,6 +3,7 @@ using System.Reflection;
 using StellarNet.Lite.Shared.Core;
 using StellarNet.Lite.Server.Core;
 using StellarNet.Lite.Client.Core;
+using StellarNet.Lite.Shared.Infrastructure;
 using UnityEngine;
 
 namespace StellarNet.Lite.Shared.Binders
@@ -26,7 +27,7 @@ namespace StellarNet.Lite.Shared.Binders
         {
             if (moduleInstance == null || dispatcher == null || deserializeFunc == null)
             {
-                Debug.LogError("[AutoBinder] 服务端全局模块装配失败: 参数存在空值");
+                LiteLogger.LogError("[AutoBinder] ",$" 服务端全局模块装配失败: 参数存在空值");
                 return;
             }
 
@@ -42,8 +43,8 @@ namespace StellarNet.Lite.Shared.Binders
                 ParameterInfo[] parameters = method.GetParameters();
                 if (parameters.Length != 2 || parameters[0].ParameterType != typeof(Session))
                 {
-                    Debug.LogError(
-                        $"[AutoBinder] 装配跳过: 方法 {moduleType.Name}.{method.Name} 签名非法。服务端全局 Handler 必须为 (Session, TMsg)");
+                    LiteLogger.LogError(
+                        $"[AutoBinder]",$"  装配跳过: 方法 {moduleType.Name}.{method.Name} 签名非法。服务端全局 Handler 必须为 (Session, TMsg)");
                     continue;
                 }
 
@@ -52,13 +53,13 @@ namespace StellarNet.Lite.Shared.Binders
 
                 if (msgAttr == null)
                 {
-                    Debug.LogError($"[AutoBinder] 装配跳过: 消息类型 {msgType.Name} 缺失 [NetMsg] 特性");
+                    LiteLogger.LogError($"[AutoBinder]",$"  装配跳过: 消息类型 {msgType.Name} 缺失 [NetMsg] 特性");
                     continue;
                 }
 
                 if (msgAttr.Scope != NetScope.Global || msgAttr.Dir != NetDir.C2S)
                 {
-                    Debug.LogError($"[AutoBinder] 装配跳过: 消息类型 {msgType.Name} 的 Scope 或 Dir 与服务端全局模块不匹配");
+                    LiteLogger.LogError($"[AutoBinder] ",$" 装配跳过: 消息类型 {msgType.Name} 的 Scope 或 Dir 与服务端全局模块不匹配");
                     continue;
                 }
 
@@ -74,7 +75,7 @@ namespace StellarNet.Lite.Shared.Binders
         {
             if (componentInstance == null || dispatcher == null || deserializeFunc == null)
             {
-                Debug.LogError("[AutoBinder] 服务端房间组件装配失败: 参数存在空值");
+                LiteLogger.LogError("[AutoBinder] ",$" 服务端房间组件装配失败: 参数存在空值");
                 return;
             }
 
@@ -90,8 +91,8 @@ namespace StellarNet.Lite.Shared.Binders
                 ParameterInfo[] parameters = method.GetParameters();
                 if (parameters.Length != 2 || parameters[0].ParameterType != typeof(Session))
                 {
-                    Debug.LogError(
-                        $"[AutoBinder] 装配跳过: 方法 {compType.Name}.{method.Name} 签名非法。服务端房间 Handler 必须为 (Session, TMsg)");
+                    LiteLogger.LogError(
+                        $"[AutoBinder]",$"  装配跳过: 方法 {compType.Name}.{method.Name} 签名非法。服务端房间 Handler 必须为 (Session, TMsg)");
                     continue;
                 }
 
@@ -100,13 +101,13 @@ namespace StellarNet.Lite.Shared.Binders
 
                 if (msgAttr == null)
                 {
-                    Debug.LogError($"[AutoBinder] 装配跳过: 消息类型 {msgType.Name} 缺失 [NetMsg] 特性");
+                    LiteLogger.LogError($"[AutoBinder]",$"  装配跳过: 消息类型 {msgType.Name} 缺失 [NetMsg] 特性");
                     continue;
                 }
 
                 if (msgAttr.Scope != NetScope.Room || msgAttr.Dir != NetDir.C2S)
                 {
-                    Debug.LogError($"[AutoBinder] 装配跳过: 消息类型 {msgType.Name} 的 Scope 或 Dir 与服务端房间组件不匹配");
+                    LiteLogger.LogError($"[AutoBinder] ",$" 装配跳过: 消息类型 {msgType.Name} 的 Scope 或 Dir 与服务端房间组件不匹配");
                     continue;
                 }
 
@@ -122,7 +123,7 @@ namespace StellarNet.Lite.Shared.Binders
         {
             if (moduleInstance == null || dispatcher == null || deserializeFunc == null)
             {
-                Debug.LogError("[AutoBinder] 客户端全局模块装配失败: 参数存在空值");
+                LiteLogger.LogError("[AutoBinder] ",$" 客户端全局模块装配失败: 参数存在空值");
                 return;
             }
 
@@ -138,8 +139,8 @@ namespace StellarNet.Lite.Shared.Binders
                 ParameterInfo[] parameters = method.GetParameters();
                 if (parameters.Length != 1)
                 {
-                    Debug.LogError(
-                        $"[AutoBinder] 装配跳过: 方法 {moduleType.Name}.{method.Name} 签名非法。客户端全局 Handler 必须为 (TMsg)");
+                    LiteLogger.LogError(
+                        $"[AutoBinder] ",$" 装配跳过: 方法 {moduleType.Name}.{method.Name} 签名非法。客户端全局 Handler 必须为 (TMsg)");
                     continue;
                 }
 
@@ -148,13 +149,13 @@ namespace StellarNet.Lite.Shared.Binders
 
                 if (msgAttr == null)
                 {
-                    Debug.LogError($"[AutoBinder] 装配跳过: 消息类型 {msgType.Name} 缺失 [NetMsg] 特性");
+                    LiteLogger.LogError($"[AutoBinder]",$"  装配跳过: 消息类型 {msgType.Name} 缺失 [NetMsg] 特性");
                     continue;
                 }
 
                 if (msgAttr.Scope != NetScope.Global || msgAttr.Dir != NetDir.S2C)
                 {
-                    Debug.LogError($"[AutoBinder] 装配跳过: 消息类型 {msgType.Name} 的 Scope 或 Dir 与客户端全局模块不匹配");
+                    LiteLogger.LogError($"[AutoBinder]",$"  装配跳过: 消息类型 {msgType.Name} 的 Scope 或 Dir 与客户端全局模块不匹配");
                     continue;
                 }
 
@@ -171,7 +172,7 @@ namespace StellarNet.Lite.Shared.Binders
         {
             if (componentInstance == null || dispatcher == null || deserializeFunc == null)
             {
-                Debug.LogError("[AutoBinder] 客户端房间组件装配失败: 参数存在空值");
+                LiteLogger.LogError("[AutoBinder] ",$" 客户端房间组件装配失败: 参数存在空值");
                 return;
             }
 
@@ -187,8 +188,8 @@ namespace StellarNet.Lite.Shared.Binders
                 ParameterInfo[] parameters = method.GetParameters();
                 if (parameters.Length != 1)
                 {
-                    Debug.LogError(
-                        $"[AutoBinder] 装配跳过: 方法 {compType.Name}.{method.Name} 签名非法。客户端房间 Handler 必须为 (TMsg)");
+                    LiteLogger.LogError(
+                        $"[AutoBinder] ",$" 装配跳过: 方法 {compType.Name}.{method.Name} 签名非法。客户端房间 Handler 必须为 (TMsg)");
                     continue;
                 }
 
@@ -197,13 +198,13 @@ namespace StellarNet.Lite.Shared.Binders
 
                 if (msgAttr == null)
                 {
-                    Debug.LogError($"[AutoBinder] 装配跳过: 消息类型 {msgType.Name} 缺失 [NetMsg] 特性");
+                    LiteLogger.LogError($"[AutoBinder]",$"  装配跳过: 消息类型 {msgType.Name} 缺失 [NetMsg] 特性");
                     continue;
                 }
 
                 if (msgAttr.Scope != NetScope.Room || msgAttr.Dir != NetDir.S2C)
                 {
-                    Debug.LogError($"[AutoBinder] 装配跳过: 消息类型 {msgType.Name} 的 Scope 或 Dir 与客户端房间组件不匹配");
+                    LiteLogger.LogError($"[AutoBinder]",$"  装配跳过: 消息类型 {msgType.Name} 的 Scope 或 Dir 与客户端房间组件不匹配");
                     continue;
                 }
 
@@ -228,7 +229,7 @@ namespace StellarNet.Lite.Shared.Binders
                 }
                 else
                 {
-                    Debug.LogError($"[AutoBinder] 运行时路由失败: MsgId {packet.MsgId}, 数据反序列化为 {typeof(TMsg).Name} 失败");
+                    LiteLogger.LogError($"[AutoBinder]",$"  运行时路由失败: MsgId {packet.MsgId}, 数据反序列化为 {typeof(TMsg).Name} 失败");
                 }
             };
         }
@@ -247,7 +248,7 @@ namespace StellarNet.Lite.Shared.Binders
                 }
                 else
                 {
-                    Debug.LogError($"[AutoBinder] 运行时路由失败: MsgId {packet.MsgId}, 数据反序列化为 {typeof(TMsg).Name} 失败");
+                    LiteLogger.LogError($"[AutoBinder] ",$" 运行时路由失败: MsgId {packet.MsgId}, 数据反序列化为 {typeof(TMsg).Name} 失败");
                 }
             };
         }

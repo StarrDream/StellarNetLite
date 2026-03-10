@@ -8,13 +8,14 @@ using StellarNet.Lite.Shared.Infrastructure;
 
 namespace StellarNet.Lite.GameDemo.Server
 {
+    // 核心新增：添加组件元数据特性，驱动常量表生成
+    [RoomComponent(100, "DemoGame")]
     public sealed class ServerDemoGameComponent : RoomComponent
     {
         private readonly Dictionary<string, DemoPlayerInfo> _players = new Dictionary<string, DemoPlayerInfo>();
         private readonly List<string> _pendingMembers = new List<string>();
         private bool _isGameOver = false;
 
-        // 核心重构：彻底移除业务组件内部的序列化器，全面拥抱 Room 基类的强类型发送器
         public ServerDemoGameComponent(Func<object, byte[]> serializeFunc)
         {
         }
@@ -85,8 +86,6 @@ namespace StellarNet.Lite.GameDemo.Server
 
             var snapshot = new List<DemoPlayerInfo>(_players.Values);
             var msg = new S2C_DemoSnapshot { Players = snapshot.ToArray() };
-
-            // 架构规范：定向发送快照，默认不录入回放时间轴
             Room.SendMessageTo(session, msg);
         }
 
@@ -94,7 +93,6 @@ namespace StellarNet.Lite.GameDemo.Server
         public void OnC2S_DemoMoveReq(Session session, C2S_DemoMoveReq msg)
         {
             if (session == null || msg == null) return;
-
             if (_isGameOver || Room.State != RoomState.Playing) return;
 
             if (!_players.TryGetValue(session.SessionId, out var player)) return;
@@ -111,7 +109,6 @@ namespace StellarNet.Lite.GameDemo.Server
                 TargetY = msg.TargetY,
                 TargetZ = msg.TargetZ
             };
-
             Room.BroadcastMessage(syncMsg);
         }
 
@@ -119,7 +116,6 @@ namespace StellarNet.Lite.GameDemo.Server
         public void OnC2S_DemoAttackReq(Session session, C2S_DemoAttackReq msg)
         {
             if (session == null || msg == null) return;
-
             if (_isGameOver || Room.State != RoomState.Playing) return;
             if (string.IsNullOrEmpty(msg.TargetSessionId)) return;
 
@@ -136,7 +132,6 @@ namespace StellarNet.Lite.GameDemo.Server
                 SessionId = target.SessionId,
                 Hp = target.Hp
             };
-
             Room.BroadcastMessage(hpMsg);
 
             if (target.Hp <= 0)
@@ -164,7 +159,6 @@ namespace StellarNet.Lite.GameDemo.Server
             if (aliveCount <= 1 && _players.Count > 1)
             {
                 _isGameOver = true;
-
                 var overMsg = new S2C_GameEnded { WinnerSessionId = lastAliveSessionId };
                 Room.BroadcastMessage(overMsg);
 
