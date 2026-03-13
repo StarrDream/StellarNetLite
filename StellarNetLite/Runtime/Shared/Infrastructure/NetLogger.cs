@@ -8,7 +8,7 @@ namespace StellarNet.Lite.Shared.Infrastructure
     /// 职责：强制统一日志的上下文输出格式，确保线上排障时能够通过正则快速过滤出特定房间或会话的完整生命周期。
     /// 核心修复 (Point 8)：告别模糊的“失败了”日志，建立可审计的日志规范。
     /// </summary>
-    public static class LiteLogger
+    public static class NetLogger
     {
         [Conditional("ENABLE_LOG")]
         public static void LogInfo(string module, string message, string roomId = "-", string sessionId = "-",

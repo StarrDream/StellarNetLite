@@ -15,7 +15,7 @@ namespace StellarNet.Lite.Client.Core
         {
             if (string.IsNullOrEmpty(sessionId))
             {
-                LiteLogger.LogError("[ClientSession]",$"  登录成功回调失败: 下发的 SessionId 为空");
+                NetLogger.LogError("[ClientSession]",$"  登录成功回调失败: 下发的 SessionId 为空");
                 return;
             }
 
@@ -27,7 +27,7 @@ namespace StellarNet.Lite.Client.Core
         {
             if (string.IsNullOrEmpty(roomId))
             {
-                LiteLogger.LogError("[ClientSession] ",$" 绑定房间失败: 传入的 roomId 为空");
+                NetLogger.LogError("[ClientSession] ",$" 绑定房间失败: 传入的 roomId 为空");
                 return;
             }
 

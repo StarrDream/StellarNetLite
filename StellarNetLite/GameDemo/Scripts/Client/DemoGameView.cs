@@ -73,7 +73,7 @@ namespace StellarNet.Lite.GameDemo.Client
                 if (_autoLeaveTimer <= 0)
                 {
                     _autoLeaveTimer = -1f;
-                    LiteLogger.LogInfo("[DemoGameView] ", $" 倒计时结束，自动发送离开房间请求");
+                    NetLogger.LogInfo("[DemoGameView] ", $" 倒计时结束，自动发送离开房间请求");
                     app.SendMessage(new C2S_LeaveRoom());
                 }
             }

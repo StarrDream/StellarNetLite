@@ -153,28 +153,28 @@ namespace StellarNet.Lite.Editor.Tools
         {
             if (string.IsNullOrEmpty(_moduleName))
             {
-                LiteLogger.LogError("[Scaffold]", $" 生成阻断: 模块名称不能为空");
+                NetLogger.LogError("[Scaffold]", $" 生成阻断: 模块名称不能为空");
                 EditorUtility.DisplayDialog("错误", "模块名称不能为空！", "确定");
                 return;
             }
 
             if (_startProtocolId <= 0)
             {
-                LiteLogger.LogError($"[Scaffold] ", $"生成阻断: 协议 ID {_startProtocolId} 非法，必须大于 0");
+                NetLogger.LogError($"[Scaffold] ", $"生成阻断: 协议 ID {_startProtocolId} 非法，必须大于 0");
                 EditorUtility.DisplayDialog("错误", "协议 ID 必须大于 0！", "确定");
                 return;
             }
 
             if (_currentType == ModuleType.RoomComponent && _componentId <= 0)
             {
-                LiteLogger.LogError($"[Scaffold]", $" 生成阻断: 组件 ID {_componentId} 非法，必须大于 0");
+                NetLogger.LogError($"[Scaffold]", $" 生成阻断: 组件 ID {_componentId} 非法，必须大于 0");
                 EditorUtility.DisplayDialog("错误", "组件 ID 必须大于 0！", "确定");
                 return;
             }
 
             if (string.IsNullOrEmpty(_outputRootPath))
             {
-                LiteLogger.LogError("[Scaffold] ", $" 生成阻断: 输出根目录不能为空");
+                NetLogger.LogError("[Scaffold] ", $" 生成阻断: 输出根目录不能为空");
                 EditorUtility.DisplayDialog("错误", "输出根目录不能为空！", "确定");
                 return;
             }
@@ -195,7 +195,7 @@ namespace StellarNet.Lite.Editor.Tools
                 }
 
                 AssetDatabase.Refresh();
-                LiteLogger.LogInfo($"[Scaffold] ", $" 业务模块 {_moduleName} 生成完毕，输出路径: {_outputRootPath}");
+                NetLogger.LogInfo($"[Scaffold] ", $" 业务模块 {_moduleName} 生成完毕，输出路径: {_outputRootPath}");
 
                 // 核心修复：更新弹窗指引，引导开发者使用自动装配工具链
                 EditorUtility.DisplayDialog("成功",
@@ -205,7 +205,7 @@ namespace StellarNet.Lite.Editor.Tools
             catch (Exception e)
             {
                 // 允许的 Try-Catch：处理不可控的底层文件 I/O 异常
-                LiteLogger.LogError($"[Scaffold] ", $" 文件写入异常: {e.Message}");
+                NetLogger.LogError($"[Scaffold] ", $" 文件写入异常: {e.Message}");
                 EditorUtility.DisplayDialog("致命错误", $"生成过程中发生文件读写异常:\n{e.Message}", "确定");
             }
         }
@@ -412,7 +412,7 @@ namespace StellarNet.Lite.Editor.Tools
 
             if (File.Exists(path))
             {
-                LiteLogger.LogWarning($"[Scaffold]", $"  文件已存在，跳过生成以防止覆盖手写业务逻辑: {path}");
+                NetLogger.LogWarning($"[Scaffold]", $"  文件已存在，跳过生成以防止覆盖手写业务逻辑: {path}");
                 return;
             }
 

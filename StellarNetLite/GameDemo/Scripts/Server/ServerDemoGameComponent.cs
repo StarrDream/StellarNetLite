@@ -78,7 +78,7 @@ namespace StellarNet.Lite.GameDemo.Server
             var msg = new S2C_DemoSnapshot { Players = snapshot.ToArray() };
             Room.BroadcastMessage(msg);
 
-            LiteLogger.LogInfo("ServerDemoGame", $"游戏正式开始，已为 {_players.Count} 名玩家生成实体", Room.RoomId);
+            NetLogger.LogInfo("ServerDemoGame", $"游戏正式开始，已为 {_players.Count} 名玩家生成实体", Room.RoomId);
         }
 
         public override void OnSendSnapshot(Session session)
@@ -165,7 +165,7 @@ namespace StellarNet.Lite.GameDemo.Server
                 _isGameOver = true;
                 var overMsg = new S2C_GameEnded { WinnerSessionId = lastAliveSessionId };
                 Room.BroadcastMessage(overMsg);
-                LiteLogger.LogInfo("ServerDemoGame", $"游戏结束，胜利者: {lastAliveSessionId}。触发房间结算。", Room.RoomId);
+                NetLogger.LogInfo("ServerDemoGame", $"游戏结束，胜利者: {lastAliveSessionId}。触发房间结算。", Room.RoomId);
                 Room.EndGame();
             }
         }

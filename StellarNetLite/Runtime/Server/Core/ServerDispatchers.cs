@@ -15,7 +15,7 @@ namespace StellarNet.Lite.Server.Core
         {
             if (handler == null)
             {
-                LiteLogger.LogError($"[GlobalDispatcher] ",$" 注册失败: 传入的 handler 为空，MsgId: {msgId}");
+                NetLogger.LogError($"[GlobalDispatcher] ",$" 注册失败: 传入的 handler 为空，MsgId: {msgId}");
                 return;
             }
 
@@ -34,7 +34,7 @@ namespace StellarNet.Lite.Server.Core
         {
             if (session == null)
             {
-                LiteLogger.LogError($"[GlobalDispatcher]",$"  分发失败: session 为空");
+                NetLogger.LogError($"[GlobalDispatcher]",$"  分发失败: session 为空");
                 return;
             }
 
@@ -44,7 +44,7 @@ namespace StellarNet.Lite.Server.Core
             }
             else
             {
-                LiteLogger.LogWarning($"[GlobalDispatcher]",$"  未找到 MsgId {packet.MsgId} 的处理函数");
+                NetLogger.LogWarning($"[GlobalDispatcher]",$"  未找到 MsgId {packet.MsgId} 的处理函数");
             }
         }
     }
@@ -65,7 +65,7 @@ namespace StellarNet.Lite.Server.Core
         {
             if (handler == null)
             {
-                LiteLogger.LogError($"[RoomDispatcher]",$"  注册失败: 传入的 handler 为空，RoomId: {_roomId}, MsgId: {msgId}");
+                NetLogger.LogError($"[RoomDispatcher]",$"  注册失败: 传入的 handler 为空，RoomId: {_roomId}, MsgId: {msgId}");
                 return;
             }
 
@@ -84,7 +84,7 @@ namespace StellarNet.Lite.Server.Core
         {
             if (session == null)
             {
-                LiteLogger.LogError($"[RoomDispatcher]",$"  分发失败: session 为空，RoomId: {_roomId}");
+                NetLogger.LogError($"[RoomDispatcher]",$"  分发失败: session 为空，RoomId: {_roomId}");
                 return;
             }
 
@@ -94,7 +94,7 @@ namespace StellarNet.Lite.Server.Core
             }
             else
             {
-                LiteLogger.LogWarning($"[RoomDispatcher]",$"  未找到 MsgId {packet.MsgId} 的处理函数，RoomId: {_roomId}");
+                NetLogger.LogWarning($"[RoomDispatcher]",$"  未找到 MsgId {packet.MsgId} 的处理函数，RoomId: {_roomId}");
             }
         }
 

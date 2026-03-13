@@ -11,7 +11,11 @@ namespace StellarNet.Lite.Client.Components
     {
         private readonly ClientApp _app;
         public readonly Dictionary<string, MemberInfo> Members = new Dictionary<string, MemberInfo>();
+
         public bool IsGameStarted { get; private set; }
+        public string RoomName { get; private set; } = string.Empty;
+        public int MaxMembers { get; private set; } = 0;
+        public bool IsPrivate { get; private set; } = false;
 
         public ClientRoomSettingsComponent(ClientApp app)
         {
@@ -22,12 +26,19 @@ namespace StellarNet.Lite.Client.Components
         {
             Members.Clear();
             IsGameStarted = false;
+            RoomName = string.Empty;
+            MaxMembers = 0;
+            IsPrivate = false;
         }
 
         [NetHandler]
         public void OnS2C_RoomSnapshot(S2C_RoomSnapshot msg)
         {
             if (msg == null || msg.Members == null) return;
+
+            RoomName = msg.RoomName;
+            MaxMembers = msg.MaxMembers;
+            IsPrivate = msg.IsPrivate;
 
             Members.Clear();
             foreach (var m in msg.Members)
@@ -38,20 +49,18 @@ namespace StellarNet.Lite.Client.Components
                 }
             }
 
-            LiteLogger.LogInfo($"[ClientRoomSettings]", $"收到房间快照, 当前人数: {Members.Count}");
+            NetLogger.LogInfo($"[ClientRoomSettings]", $"收到房间快照, 房间名: {RoomName}, 当前人数: {Members.Count}/{MaxMembers}");
             Room.NetEventSystem.Broadcast(msg);
         }
 
         [NetHandler]
         public void OnS2C_MemberJoined(S2C_MemberJoined msg)
         {
-            if (msg == null || string.IsNullOrEmpty(msg.SessionId)) return;
+            // 适配新协议：直接将服务端下发的全量 MemberInfo 存入字典
+            if (msg == null || msg.Member == null || string.IsNullOrEmpty(msg.Member.SessionId)) return;
 
-            if (!Members.ContainsKey(msg.SessionId))
-            {
-                Members[msg.SessionId] = new MemberInfo { SessionId = msg.SessionId, IsReady = false, IsOwner = false };
-                LiteLogger.LogInfo($"[ClientRoomSettings]", $"成员加入: {msg.SessionId}");
-            }
+            Members[msg.Member.SessionId] = msg.Member;
+            NetLogger.LogInfo($"[ClientRoomSettings]", $"成员加入: {msg.Member.DisplayName} (UID: {msg.Member.Uid})");
 
             Room.NetEventSystem.Broadcast(msg);
         }
@@ -61,9 +70,11 @@ namespace StellarNet.Lite.Client.Components
         {
             if (msg == null || string.IsNullOrEmpty(msg.SessionId)) return;
 
-            if (Members.Remove(msg.SessionId))
+            // 离开前，可以通过 SessionId 查出他的名字打印日志
+            if (Members.TryGetValue(msg.SessionId, out var leftMember))
             {
-                LiteLogger.LogInfo($"[ClientRoomSettings]", $"成员离开: {msg.SessionId}");
+                NetLogger.LogInfo($"[ClientRoomSettings]", $"成员离开: {leftMember.DisplayName} (UID: {leftMember.Uid})");
+                Members.Remove(msg.SessionId);
             }
 
             Room.NetEventSystem.Broadcast(msg);
@@ -77,7 +88,7 @@ namespace StellarNet.Lite.Client.Components
             if (Members.TryGetValue(msg.SessionId, out var member))
             {
                 member.IsReady = msg.IsReady;
-                LiteLogger.LogInfo($"[ClientRoomSettings]", $"成员准备状态变更: {msg.SessionId} -> {msg.IsReady}");
+                NetLogger.LogInfo($"[ClientRoomSettings]", $"成员准备状态变更: {member.DisplayName} -> {msg.IsReady}");
             }
 
             Room.NetEventSystem.Broadcast(msg);
@@ -87,9 +98,7 @@ namespace StellarNet.Lite.Client.Components
         public void OnS2C_GameStarted(S2C_GameStarted msg)
         {
             if (msg == null) return;
-
             IsGameStarted = true;
-            LiteLogger.LogInfo($"[ClientRoomSettings]", $"收到游戏开始事件, 时间戳: {msg.StartUnixTime}");
             Room.NetEventSystem.Broadcast(msg);
         }
 
@@ -97,14 +106,8 @@ namespace StellarNet.Lite.Client.Components
         public void OnS2C_GameEnded(S2C_GameEnded msg)
         {
             if (msg == null) return;
-
             IsGameStarted = false;
-            foreach (var kvp in Members)
-            {
-                kvp.Value.IsReady = false;
-            }
-
-            LiteLogger.LogInfo($"[ClientRoomSettings]", $"收到游戏结束事件, 胜者: {msg.WinnerSessionId}。房间状态已重置为等待中。");
+            foreach (var kvp in Members) kvp.Value.IsReady = false;
             Room.NetEventSystem.Broadcast(msg);
         }
     }

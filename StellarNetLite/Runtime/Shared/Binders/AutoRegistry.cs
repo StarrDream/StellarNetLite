@@ -35,20 +35,20 @@ namespace StellarNet.Lite.Shared.Binders
         public static void RegisterServer(ServerApp serverApp, Func<byte[], Type, object> deserializeFunc)
         {
             AutoBinder.BindServerModule(new StellarNet.Lite.Server.Modules.ServerUserModule(serverApp), serverApp.GlobalDispatcher, deserializeFunc);
-            AutoBinder.BindServerModule(new StellarNet.Lite.Server.Modules.ServerReplayModule(serverApp), serverApp.GlobalDispatcher, deserializeFunc);
             AutoBinder.BindServerModule(new StellarNet.Lite.Server.Modules.ServerRoomModule(serverApp), serverApp.GlobalDispatcher, deserializeFunc);
             AutoBinder.BindServerModule(new StellarNet.Lite.Server.Modules.ServerLobbyModule(serverApp), serverApp.GlobalDispatcher, deserializeFunc);
-            ServerRoomFactory.Register(100, () => new StellarNet.Lite.GameDemo.Server.ServerDemoGameComponent(serverApp));
-            ServerRoomFactory.Register(101, () => new Game.Server.Components.ServerWorkRunComponent(serverApp));
+            AutoBinder.BindServerModule(new StellarNet.Lite.Server.Modules.ServerReplayModule(serverApp), serverApp.GlobalDispatcher, deserializeFunc);
             ServerRoomFactory.Register(1, () => new StellarNet.Lite.Server.Components.ServerRoomSettingsComponent(serverApp));
+            ServerRoomFactory.Register(101, () => new Game.Server.Components.ServerWorkRunComponent(serverApp));
+            ServerRoomFactory.Register(100, () => new StellarNet.Lite.GameDemo.Server.ServerDemoGameComponent(serverApp));
         }
 
         public static void RegisterClient(ClientApp clientApp, Func<byte[], Type, object> deserializeFunc)
         {
-            AutoBinder.BindClientModule(new StellarNet.Lite.Client.Modules.ClientLobbyModule(clientApp), clientApp.GlobalDispatcher, deserializeFunc);
-            AutoBinder.BindClientModule(new StellarNet.Lite.Client.Modules.ClientReplayModule(clientApp), clientApp.GlobalDispatcher, deserializeFunc);
-            AutoBinder.BindClientModule(new StellarNet.Lite.Client.Modules.ClientRoomModule(clientApp), clientApp.GlobalDispatcher, deserializeFunc);
             AutoBinder.BindClientModule(new StellarNet.Lite.Client.Modules.ClientUserModule(clientApp), clientApp.GlobalDispatcher, deserializeFunc);
+            AutoBinder.BindClientModule(new StellarNet.Lite.Client.Modules.ClientLobbyModule(clientApp), clientApp.GlobalDispatcher, deserializeFunc);
+            AutoBinder.BindClientModule(new StellarNet.Lite.Client.Modules.ClientRoomModule(clientApp), clientApp.GlobalDispatcher, deserializeFunc);
+            AutoBinder.BindClientModule(new StellarNet.Lite.Client.Modules.ClientReplayModule(clientApp), clientApp.GlobalDispatcher, deserializeFunc);
             ClientRoomFactory.Register(101, () => new Game.Client.Components.ClientWorkRunComponent(clientApp));
             ClientRoomFactory.Register(1, () => new StellarNet.Lite.Client.Components.ClientRoomSettingsComponent(clientApp));
             ClientRoomFactory.Register(100, () => new StellarNet.Lite.GameDemo.Client.ClientDemoGameComponent(clientApp));

@@ -62,7 +62,7 @@ namespace StellarNet.Lite.Server.Core
             for (int i = 0; i < _gcRoomCache.Count; i++)
             {
                 string roomId = _gcRoomCache[i];
-                LiteLogger.LogWarning($"[ServerApp]", $"触发房间 GC: 销毁房间 {roomId} (可能因超时或长期空置)");
+                NetLogger.LogWarning($"[ServerApp]", $"触发房间 GC: 销毁房间 {roomId} (可能因超时或长期空置)");
                 DestroyRoom(roomId);
             }
 
@@ -100,7 +100,7 @@ namespace StellarNet.Lite.Server.Core
                     }
 
                     RemoveSession(sessionId);
-                    LiteLogger.LogWarning($"[ServerApp]", $"触发 Session GC: 彻底回收长期离线会话 {sessionId}");
+                    NetLogger.LogWarning($"[ServerApp]", $"触发 Session GC: 彻底回收长期离线会话 {sessionId}");
                 }
             }
         }
@@ -112,13 +112,13 @@ namespace StellarNet.Lite.Server.Core
             {
                 session = new Session(Guid.NewGuid().ToString("N"), "UNAUTH", connectionId);
                 RegisterSession(session);
-                LiteLogger.LogInfo($"[ServerApp]", $"接收到新连接，已分配匿名会话: {session.SessionId}");
+                NetLogger.LogInfo($"[ServerApp]", $"接收到新连接，已分配匿名会话: {session.SessionId}");
             }
 
             // 架构说明：在路由分发前进行全局防重放拦截。
             if (packet.Seq > 0 && !session.TryConsumeSeq(packet.Seq))
             {
-                LiteLogger.LogWarning(
+                NetLogger.LogWarning(
                     $"[ServerApp]", $"防重放拦截: 丢弃重复包 MsgId {packet.MsgId}, Seq {packet.Seq}, 当前记录 Seq {session.LastReceivedSeq}");
                 return;
             }
@@ -131,14 +131,14 @@ namespace StellarNet.Lite.Server.Core
             {
                 if (string.IsNullOrEmpty(packet.RoomId) || packet.RoomId != session.CurrentRoomId)
                 {
-                    LiteLogger.LogError(
+                    NetLogger.LogError(
                         $"[ServerApp]", $"路由阻断: 房间上下文不匹配。Packet.RoomId: {packet.RoomId}, Session.RoomId: {session.CurrentRoomId}");
                     return;
                 }
 
                 if (!_rooms.TryGetValue(packet.RoomId, out var room))
                 {
-                    LiteLogger.LogError($"[ServerApp]", $"路由阻断: 目标房间不存在，RoomId: {packet.RoomId}");
+                    NetLogger.LogError($"[ServerApp]", $"路由阻断: 目标房间不存在，RoomId: {packet.RoomId}");
                     return;
                 }
 
@@ -155,13 +155,13 @@ namespace StellarNet.Lite.Server.Core
 
             if (!NetMessageMapper.TryGetMeta(typeof(T), out var meta))
             {
-                LiteLogger.LogError($"[ServerApp]", $"发送失败: 未找到类型 {typeof(T).Name} 的网络元数据");
+                NetLogger.LogError($"[ServerApp]", $"发送失败: 未找到类型 {typeof(T).Name} 的网络元数据");
                 return;
             }
 
             if (meta.Dir != NetDir.S2C)
             {
-                LiteLogger.LogError($"[ServerApp]", $"发送阻断: 协议 {meta.Id} 的方向为 {meta.Dir}，服务端只能发送 S2C 协议");
+                NetLogger.LogError($"[ServerApp]", $"发送阻断: 协议 {meta.Id} 的方向为 {meta.Dir}，服务端只能发送 S2C 协议");
                 return;
             }
 
@@ -228,7 +228,7 @@ namespace StellarNet.Lite.Server.Core
 
             if (_connectionToSession.TryGetValue(connectionId, out var oldSession) && oldSession != session)
             {
-                LiteLogger.LogWarning(
+                NetLogger.LogWarning(
                     $"[ServerApp]", $"物理连接顶号: ConnectionId {connectionId} 原属 Session {oldSession.SessionId}，现被 {session.SessionId} 抢占");
                 oldSession.MarkOffline();
             }

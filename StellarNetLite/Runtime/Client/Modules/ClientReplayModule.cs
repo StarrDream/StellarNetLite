@@ -32,15 +32,15 @@ namespace StellarNet.Lite.Client.Modules
 
             if (!msg.Success)
             {
-                LiteLogger.LogError("ClientReplayModule", $"录像下载失败: {msg.Reason}");
+                NetLogger.LogError("ClientReplayModule", $"录像下载失败: {msg.Reason}");
             }
             else if (string.IsNullOrEmpty(msg.ReplayFileData))
             {
-                LiteLogger.LogError("ClientReplayModule", "录像下载失败: 服务端返回的录像数据为空");
+                NetLogger.LogError("ClientReplayModule", "录像下载失败: 服务端返回的录像数据为空");
             }
             else
             {
-                LiteLogger.LogInfo("ClientReplayModule", $"录像下载成功，准备派发给表现层解析");
+                NetLogger.LogInfo("ClientReplayModule", $"录像下载成功，准备派发给表现层解析");
             }
 
             GlobalTypeNetEvent.Broadcast(msg);

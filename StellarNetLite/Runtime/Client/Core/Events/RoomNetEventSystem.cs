@@ -36,7 +36,7 @@ namespace StellarNet.Lite.Client.Core.Events
             return new CustomUnRegister(() => UnRegister(onEvent));
         }
 
-        private void UnRegister<T>(Action<T> onEvent)
+        public void UnRegister<T>(Action<T> onEvent)
         {
             if (onEvent == null) return;
 

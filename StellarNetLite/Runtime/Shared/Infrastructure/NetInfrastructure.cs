@@ -18,7 +18,7 @@ namespace StellarNet.Lite.Shared.Infrastructure
         {
             if (obj == null)
             {
-                LiteLogger.LogError("[JsonNetSerializer] ",$" 序列化失败: 传入对象为空");
+                NetLogger.LogError("[JsonNetSerializer] ",$" 序列化失败: 传入对象为空");
                 return new byte[0];
             }
 
@@ -29,7 +29,7 @@ namespace StellarNet.Lite.Shared.Infrastructure
             }
             catch (Exception e)
             {
-                LiteLogger.LogError($"[JsonNetSerializer]",$"  序列化异常: {e.Message}");
+                NetLogger.LogError($"[JsonNetSerializer]",$"  序列化异常: {e.Message}");
                 return new byte[0];
             }
         }
@@ -38,13 +38,13 @@ namespace StellarNet.Lite.Shared.Infrastructure
         {
             if (data == null || data.Length == 0)
             {
-                LiteLogger.LogError("[JsonNetSerializer] ",$" 反序列化失败: 字节数组为空");
+                NetLogger.LogError("[JsonNetSerializer] ",$" 反序列化失败: 字节数组为空");
                 return null;
             }
 
             if (type == null)
             {
-                LiteLogger.LogError("[JsonNetSerializer] ",$" 反序列化失败: 目标类型为空");
+                NetLogger.LogError("[JsonNetSerializer] ",$" 反序列化失败: 目标类型为空");
                 return null;
             }
 
@@ -55,7 +55,7 @@ namespace StellarNet.Lite.Shared.Infrastructure
             }
             catch (Exception e)
             {
-                LiteLogger.LogError($"[JsonNetSerializer] ",$" 反序列化异常: 目标类型 {type.Name}, 错误: {e.Message}");
+                NetLogger.LogError($"[JsonNetSerializer] ",$" 反序列化异常: 目标类型 {type.Name}, 错误: {e.Message}");
                 return null;
             }
         }

@@ -41,19 +41,19 @@ namespace StellarNet.Lite.Client.Core
             {
                 if (State == ClientAppState.ReplayRoom)
                 {
-                    LiteLogger.LogWarning("ClientApp", $"拦截: 回放模式下禁止接收真实网络房间包, MsgId: {packet.MsgId}");
+                    NetLogger.LogWarning("ClientApp", $"拦截: 回放模式下禁止接收真实网络房间包, MsgId: {packet.MsgId}");
                     return;
                 }
 
                 if (CurrentRoom == null)
                 {
-                    LiteLogger.LogError("ClientApp", $"路由阻断: 当前不在任何房间中，却收到 Room 消息, MsgId: {packet.MsgId}");
+                    NetLogger.LogError("ClientApp", $"路由阻断: 当前不在任何房间中，却收到 Room 消息, MsgId: {packet.MsgId}");
                     return;
                 }
 
                 if (packet.RoomId != CurrentRoom.RoomId)
                 {
-                    LiteLogger.LogError("ClientApp",
+                    NetLogger.LogError("ClientApp",
                         $"路由阻断: 房间上下文不匹配。PacketRoom: {packet.RoomId}, CurrentRoom: {CurrentRoom.RoomId}");
                     return;
                 }
@@ -81,11 +81,11 @@ namespace StellarNet.Lite.Client.Core
 
             if (!isValidTransition)
             {
-                LiteLogger.LogError("ClientApp", $"非法状态迁移拦截: 无法从 {State} 直接切换到 {targetState}，必须先退回 Idle 状态。");
+                NetLogger.LogError("ClientApp", $"非法状态迁移拦截: 无法从 {State} 直接切换到 {targetState}，必须先退回 Idle 状态。");
                 return false;
             }
 
-            LiteLogger.LogInfo("ClientApp", $"状态机迁移: {State} -> {targetState}");
+            NetLogger.LogInfo("ClientApp", $"状态机迁移: {State} -> {targetState}");
             State = targetState;
             return true;
         }
@@ -136,31 +136,31 @@ namespace StellarNet.Lite.Client.Core
         {
             if (msg == null)
             {
-                LiteLogger.LogError("ClientApp", "发送失败: 消息对象为空");
+                NetLogger.LogError("ClientApp", "发送失败: 消息对象为空");
                 return;
             }
 
             if (!NetMessageMapper.TryGetMeta(typeof(T), out var meta))
             {
-                LiteLogger.LogError("ClientApp", $"发送失败: 未找到类型 {typeof(T).Name} 的网络元数据，请检查是否添加了 [NetMsg] 特性");
+                NetLogger.LogError("ClientApp", $"发送失败: 未找到类型 {typeof(T).Name} 的网络元数据，请检查是否添加了 [NetMsg] 特性");
                 return;
             }
 
             if (meta.Dir != NetDir.C2S)
             {
-                LiteLogger.LogError("ClientApp", $"发送阻断: 协议 {meta.Id} 的方向为 {meta.Dir}，客户端只能发送 C2S 协议");
+                NetLogger.LogError("ClientApp", $"发送阻断: 协议 {meta.Id} 的方向为 {meta.Dir}，客户端只能发送 C2S 协议");
                 return;
             }
 
             if (State == ClientAppState.ReplayRoom)
             {
-                LiteLogger.LogWarning("ClientApp", $"拦截: 回放模式下禁止发送网络包，已自动丢弃协议 {meta.Id}");
+                NetLogger.LogWarning("ClientApp", $"拦截: 回放模式下禁止发送网络包，已自动丢弃协议 {meta.Id}");
                 return;
             }
 
             if (meta.Scope == NetScope.Room && (State != ClientAppState.OnlineRoom || CurrentRoom == null))
             {
-                LiteLogger.LogError("ClientApp", $"发送失败: 协议 {meta.Id} 作用域为 Room，但当前不在在线房间中");
+                NetLogger.LogError("ClientApp", $"发送失败: 协议 {meta.Id} 作用域为 Room，但当前不在在线房间中");
                 return;
             }
 

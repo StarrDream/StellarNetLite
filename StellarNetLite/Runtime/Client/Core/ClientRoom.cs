@@ -27,7 +27,7 @@ namespace StellarNet.Lite.Client.Core
         {
             if (string.IsNullOrEmpty(roomId))
             {
-                LiteLogger.LogError("[ClientRoom] ", $" 房间创建阻断: 传入的 roomId 为空，拒绝实例化");
+                NetLogger.LogError("[ClientRoom] ", $" 房间创建阻断: 传入的 roomId 为空，拒绝实例化");
                 return null;
             }
 
@@ -38,7 +38,7 @@ namespace StellarNet.Lite.Client.Core
         {
             if (component == null)
             {
-                LiteLogger.LogError($"[ClientRoom] ", $" 添加组件失败: component 为空，RoomId: {RoomId}");
+                NetLogger.LogError($"[ClientRoom] ", $" 添加组件失败: component 为空，RoomId: {RoomId}");
                 return;
             }
 

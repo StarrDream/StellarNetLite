@@ -35,7 +35,7 @@ namespace StellarNet.Lite.Editor
         public static void ManualRun()
         {
             RunScanAndGenerate();
-            LiteLogger.LogInfo("[LiteProtocolScanner]", "手动触发扫描与常量表生成完毕。");
+            NetLogger.LogInfo("[LiteProtocolScanner]", "手动触发扫描与常量表生成完毕。");
         }
 
         private static void RunScanAndGenerate()
@@ -63,7 +63,7 @@ namespace StellarNet.Lite.Editor
                 {
                     if (!idSet.Add(attr.Id))
                     {
-                        LiteLogger.LogError($"[StellarNet 致命错误]", $"协议 ID 冲突: ID {attr.Id} 在类 {type.Name} 中重复使用，请立即修改！");
+                        NetLogger.LogError($"[StellarNet 致命错误]", $"协议 ID 冲突: ID {attr.Id} 在类 {type.Name} 中重复使用，请立即修改！");
                         hasConflict = true;
                     }
                     else
@@ -75,7 +75,7 @@ namespace StellarNet.Lite.Editor
 
             if (hasConflict)
             {
-                LiteLogger.LogError("[LiteProtocolScanner]", $"存在协议 ID 冲突，已终止协议常量表生成。");
+                NetLogger.LogError("[LiteProtocolScanner]", $"存在协议 ID 冲突，已终止协议常量表生成。");
                 return false;
             }
 
@@ -99,7 +99,7 @@ namespace StellarNet.Lite.Editor
                     {
                         if (existingName != attr.Name)
                         {
-                            LiteLogger.LogError($"[StellarNet 致命错误]", $"组件 ID 冲突: ID {attr.Id} 被分配给了 {existingName} 和 {attr.Name}！");
+                            NetLogger.LogError($"[StellarNet 致命错误]", $"组件 ID 冲突: ID {attr.Id} 被分配给了 {existingName} 和 {attr.Name}！");
                             hasConflict = true;
                         }
                         else
@@ -118,7 +118,7 @@ namespace StellarNet.Lite.Editor
 
             if (hasConflict)
             {
-                LiteLogger.LogError("[LiteProtocolScanner]", $"存在组件 ID 冲突，已终止组件常量表生成。");
+                NetLogger.LogError("[LiteProtocolScanner]", $"存在组件 ID 冲突，已终止组件常量表生成。");
                 return false;
             }
 
@@ -290,7 +290,7 @@ namespace StellarNet.Lite.Editor
                 }
 
                 File.WriteAllText(path, newContent, Encoding.UTF8);
-                LiteLogger.LogInfo($"[LiteProtocolScanner]", $"检测到变更，已自动更新装配文件: {path}");
+                NetLogger.LogInfo($"[LiteProtocolScanner]", $"检测到变更，已自动更新装配文件: {path}");
                 return true;
             }
 

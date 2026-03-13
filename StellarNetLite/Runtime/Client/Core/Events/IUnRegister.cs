@@ -11,11 +11,18 @@ namespace StellarNet.Lite.Client.Core.Events
     public interface IUnRegister
     {
         void UnRegister();
+
         IUnRegister UnRegisterWhenGameObjectDestroyed(GameObject gameObject);
+
+        /// <summary>
+        /// 将事件注销与 MonoBehaviour 的 OnDisable 生命周期绑定。
+        /// 架构意图：专为 UI 对象池与频繁隐藏/显示的组件设计，防止隐藏期间后台持续响应网络事件。
+        /// </summary>
+        IUnRegister UnRegisterWhenMonoDisable(MonoBehaviour mono);
     }
 
     /// <summary>
-    /// 注销接口的具体实现
+    /// 注销接口的具体实现 (RoomNetEventSystem 默认使用此实现)
     /// </summary>
     public class CustomUnRegister : IUnRegister
     {
@@ -49,6 +56,24 @@ namespace StellarNet.Lite.Client.Core.Events
             trigger.Add(this);
             return this;
         }
+
+        public IUnRegister UnRegisterWhenMonoDisable(MonoBehaviour mono)
+        {
+            if (mono == null)
+            {
+                UnRegister();
+                return this;
+            }
+
+            if (!mono.TryGetComponent<EventUnregisterDisableTrigger>(out var trigger))
+            {
+                trigger = mono.gameObject.AddComponent<EventUnregisterDisableTrigger>();
+                trigger.hideFlags = HideFlags.HideInInspector;
+            }
+
+            trigger.Add(this);
+            return this;
+        }
     }
 
     /// <summary>
@@ -72,6 +97,32 @@ namespace StellarNet.Lite.Client.Core.Events
                 unRegister?.UnRegister();
             }
 
+            _unRegisters.Clear();
+        }
+    }
+
+    /// <summary>
+    /// 自动挂载的辅助组件，用于监听 OnDisable 并触发批量注销
+    /// </summary>
+    [DisallowMultipleComponent]
+    public class EventUnregisterDisableTrigger : MonoBehaviour
+    {
+        private readonly HashSet<IUnRegister> _unRegisters = new HashSet<IUnRegister>();
+
+        public void Add(IUnRegister unRegister)
+        {
+            if (unRegister == null) return;
+            _unRegisters.Add(unRegister);
+        }
+
+        private void OnDisable()
+        {
+            foreach (var unRegister in _unRegisters)
+            {
+                unRegister?.UnRegister();
+            }
+
+            // 触发后必须清空，以便对象在 OnEnable 重新注册时能够开启新一轮的生命周期追踪
             _unRegisters.Clear();
         }
     }

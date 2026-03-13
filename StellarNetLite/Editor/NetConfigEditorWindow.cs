@@ -107,11 +107,11 @@ namespace StellarNet.Lite.Editor
                 string json = JsonConvert.SerializeObject(_currentConfig, Formatting.Indented);
                 File.WriteAllText(fullPath, json);
                 AssetDatabase.Refresh();
-                LiteLogger.LogInfo($"[NetConfigEditor]",$" 配置保存成功! 路径: {fullPath}");
+                NetLogger.LogInfo($"[NetConfigEditor]",$" 配置保存成功! 路径: {fullPath}");
             }
             catch (System.Exception e)
             {
-                LiteLogger.LogError($"[NetConfigEditor]",$" 保存配置失败: {e.Message}");
+                NetLogger.LogError($"[NetConfigEditor]",$" 保存配置失败: {e.Message}");
             }
         }
 

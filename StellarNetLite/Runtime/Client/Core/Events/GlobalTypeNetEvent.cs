@@ -19,6 +19,16 @@ namespace StellarNet.Lite.Client.Core.Events
             return EventBox<T>.AllocateToken(onEvent);
         }
 
+        /// <summary>
+        /// 显式注销指定的事件监听器。
+        /// 架构意图：提供非 Token 依赖的对称注销方式，适用于基于状态机切换而非生命周期的精准控制。
+        /// </summary>
+        public static void UnRegister<T>(Action<T> onEvent)
+        {
+            if (onEvent == null) return;
+            EventBox<T>.Subscribers -= onEvent;
+        }
+
         public static void Broadcast<T>(T e)
         {
             EventBox<T>.Subscribers?.Invoke(e);
@@ -51,7 +61,6 @@ namespace StellarNet.Lite.Client.Core.Events
             public static void RecycleToken(EventToken token)
             {
                 if (token == null || token.IsRecycled) return;
-
                 token.Handler = null;
                 token.IsRecycled = true;
                 _pool.Push(token);
@@ -90,6 +99,24 @@ namespace StellarNet.Lite.Client.Core.Events
                     if (!gameObject.TryGetComponent<EventUnregisterTrigger>(out var trigger))
                     {
                         trigger = gameObject.AddComponent<EventUnregisterTrigger>();
+                        trigger.hideFlags = HideFlags.HideInInspector;
+                    }
+
+                    trigger.Add(this);
+                    return this;
+                }
+
+                public IUnRegister UnRegisterWhenMonoDisable(MonoBehaviour mono)
+                {
+                    if (mono == null)
+                    {
+                        UnRegister();
+                        return this;
+                    }
+
+                    if (!mono.TryGetComponent<EventUnregisterDisableTrigger>(out var trigger))
+                    {
+                        trigger = mono.gameObject.AddComponent<EventUnregisterDisableTrigger>();
                         trigger.hideFlags = HideFlags.HideInInspector;
                     }
 

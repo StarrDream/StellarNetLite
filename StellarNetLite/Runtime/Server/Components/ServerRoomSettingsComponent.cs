@@ -25,6 +25,21 @@ namespace StellarNet.Lite.Server.Components
             _ownerSessionId = string.Empty;
         }
 
+        // 核心工厂方法：将底层的 Session 转换为表现层的 MemberInfo
+        private MemberInfo CreateMemberInfo(Session session, bool isReady, bool isOwner)
+        {
+            return new MemberInfo
+            {
+                SessionId = session.SessionId,
+                Uid = session.Uid,
+                // 这里假设 Session 中暂时没有 DisplayName，先用 Uid 兜底。
+                // 后续如果你的 Session 扩展了 userData，可以直接写 DisplayName = session.DisplayName
+                DisplayName = string.IsNullOrEmpty(session.Uid) ? "Unknown" : session.Uid,
+                IsReady = isReady,
+                IsOwner = isOwner
+            };
+        }
+
         public override void OnMemberJoined(Session session)
         {
             if (session == null) return;
@@ -36,7 +51,9 @@ namespace StellarNet.Lite.Server.Components
 
             _readyStates[session.SessionId] = false;
 
-            var msg = new S2C_MemberJoined { SessionId = session.SessionId };
+            // 广播加入事件时，直接下发封装好的全量 MemberInfo
+            var memberInfo = CreateMemberInfo(session, false, session.SessionId == _ownerSessionId);
+            var msg = new S2C_MemberJoined { Member = memberInfo };
             Room.BroadcastMessage(msg);
 
             OnSendSnapshot(session);
@@ -63,7 +80,7 @@ namespace StellarNet.Lite.Server.Components
 
             if (_ownerSessionId == session.SessionId)
             {
-                LiteLogger.LogWarning("ServerRoomSettings", "房主异常离线，触发房主移交机制", Room.RoomId, session.SessionId);
+                NetLogger.LogWarning("ServerRoomSettings", "房主异常离线，触发房主移交机制", Room.RoomId, session.SessionId);
                 MigrateHost();
             }
         }
@@ -78,11 +95,7 @@ namespace StellarNet.Lite.Server.Components
                 var memberSession = Room.GetMember(kvp.Key);
                 if (memberSession != null)
                 {
-                    if (string.IsNullOrEmpty(fallbackSessionId))
-                    {
-                        fallbackSessionId = kvp.Key;
-                    }
-
+                    if (string.IsNullOrEmpty(fallbackSessionId)) fallbackSessionId = kvp.Key;
                     if (memberSession.IsOnline)
                     {
                         _ownerSessionId = kvp.Key;
@@ -91,10 +104,7 @@ namespace StellarNet.Lite.Server.Components
                 }
             }
 
-            if (string.IsNullOrEmpty(_ownerSessionId))
-            {
-                _ownerSessionId = fallbackSessionId;
-            }
+            if (string.IsNullOrEmpty(_ownerSessionId)) _ownerSessionId = fallbackSessionId;
 
             if (!string.IsNullOrEmpty(_ownerSessionId))
             {
@@ -109,15 +119,20 @@ namespace StellarNet.Lite.Server.Components
             var members = new List<MemberInfo>();
             foreach (var kvp in _readyStates)
             {
-                members.Add(new MemberInfo
+                var memberSession = Room.GetMember(kvp.Key);
+                if (memberSession != null)
                 {
-                    SessionId = kvp.Key,
-                    IsReady = kvp.Value,
-                    IsOwner = (kvp.Key == _ownerSessionId)
-                });
+                    members.Add(CreateMemberInfo(memberSession, kvp.Value, kvp.Key == _ownerSessionId));
+                }
             }
 
-            var msg = new S2C_RoomSnapshot { Members = members.ToArray() };
+            var msg = new S2C_RoomSnapshot
+            {
+                RoomName = Room.Config.RoomName,
+                MaxMembers = Room.Config.MaxMembers,
+                IsPrivate = Room.Config.IsPrivate,
+                Members = members.ToArray()
+            };
             Room.SendMessageTo(session, msg);
         }
 
@@ -126,15 +141,20 @@ namespace StellarNet.Lite.Server.Components
             var members = new List<MemberInfo>();
             foreach (var kvp in _readyStates)
             {
-                members.Add(new MemberInfo
+                var memberSession = Room.GetMember(kvp.Key);
+                if (memberSession != null)
                 {
-                    SessionId = kvp.Key,
-                    IsReady = kvp.Value,
-                    IsOwner = (kvp.Key == _ownerSessionId)
-                });
+                    members.Add(CreateMemberInfo(memberSession, kvp.Value, kvp.Key == _ownerSessionId));
+                }
             }
 
-            var msg = new S2C_RoomSnapshot { Members = members.ToArray() };
+            var msg = new S2C_RoomSnapshot
+            {
+                RoomName = Room.Config.RoomName,
+                MaxMembers = Room.Config.MaxMembers,
+                IsPrivate = Room.Config.IsPrivate,
+                Members = members.ToArray()
+            };
             Room.BroadcastMessage(msg);
         }
 
@@ -142,7 +162,6 @@ namespace StellarNet.Lite.Server.Components
         public void OnC2S_SetReady(Session session, C2S_SetReady msg)
         {
             if (session == null || msg == null) return;
-
             if (!_readyStates.ContainsKey(session.SessionId)) return;
 
             _readyStates[session.SessionId] = msg.IsReady;
@@ -155,32 +174,15 @@ namespace StellarNet.Lite.Server.Components
         public void OnC2S_StartGame(Session session, C2S_StartGame msg)
         {
             if (session == null) return;
-
-            if (session.SessionId != _ownerSessionId)
-            {
-                LiteLogger.LogWarning("ServerRoomSettings", "越权拦截: 非房主尝试开始游戏", Room.RoomId, session.SessionId);
-                return;
-            }
-
-            if (Room.State != RoomState.Waiting)
-            {
-                LiteLogger.LogWarning("ServerRoomSettings", $"状态拦截: 房间当前状态为 {Room.State}，无法开始游戏", Room.RoomId,
-                    session.SessionId);
-                return;
-            }
+            if (session.SessionId != _ownerSessionId) return;
+            if (Room.State != RoomState.Waiting) return;
 
             foreach (var kvp in _readyStates)
             {
-                if (kvp.Key != _ownerSessionId && !kvp.Value)
-                {
-                    LiteLogger.LogWarning("ServerRoomSettings", $"拦截: 玩家 {kvp.Key} 未准备，无法开始游戏", Room.RoomId,
-                        session.SessionId);
-                    return;
-                }
+                if (kvp.Key != _ownerSessionId && !kvp.Value) return;
             }
 
             Room.StartGame();
-
             var notify = new S2C_GameStarted { StartUnixTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds() };
             Room.BroadcastMessage(notify);
         }
@@ -189,22 +191,10 @@ namespace StellarNet.Lite.Server.Components
         public void OnC2S_EndGame(Session session, C2S_EndGame msg)
         {
             if (session == null) return;
-
-            if (session.SessionId != _ownerSessionId)
-            {
-                LiteLogger.LogWarning("ServerRoomSettings", "越权拦截: 非房主尝试强制结束游戏", Room.RoomId, session.SessionId);
-                return;
-            }
-
-            if (Room.State != RoomState.Playing)
-            {
-                LiteLogger.LogWarning("ServerRoomSettings", $"状态拦截: 房间当前状态为 {Room.State}，无法强制结束", Room.RoomId,
-                    session.SessionId);
-                return;
-            }
+            if (session.SessionId != _ownerSessionId) return;
+            if (Room.State != RoomState.Playing) return;
 
             Room.EndGame();
-
             var notify = new S2C_GameEnded { WinnerSessionId = "房主强制中止" };
             Room.BroadcastMessage(notify);
         }

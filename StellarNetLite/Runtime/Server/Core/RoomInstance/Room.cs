@@ -34,6 +34,7 @@ namespace StellarNet.Lite.Server.Core
         public ReplayFile LastReplay { get; private set; }
 
         private readonly Dictionary<string, Session> _members = new Dictionary<string, Session>();
+        public IReadOnlyDictionary<string, Session> Members => _members;
         private readonly List<RoomComponent> _components = new List<RoomComponent>();
         private readonly List<ReplayFrame> _recorder = new List<ReplayFrame>();
 
@@ -82,7 +83,7 @@ namespace StellarNet.Lite.Server.Core
 
             if (State == RoomState.Finished)
             {
-                LiteLogger.LogWarning("Room", "拦截加入: 房间已结束，拒绝加入", RoomId, session.SessionId);
+                NetLogger.LogWarning("Room", "拦截加入: 房间已结束，拒绝加入", RoomId, session.SessionId);
                 return;
             }
 
@@ -136,7 +137,7 @@ namespace StellarNet.Lite.Server.Core
 
             if (State == RoomState.Finished)
             {
-                LiteLogger.LogWarning("Room", "拦截重连: 房间已结束，强制将重连玩家移出房间", RoomId, session.SessionId);
+                NetLogger.LogWarning("Room", "拦截重连: 房间已结束，强制将重连玩家移出房间", RoomId, session.SessionId);
                 RemoveMember(session);
                 return;
             }
@@ -191,13 +192,13 @@ namespace StellarNet.Lite.Server.Core
         {
             if (!NetMessageMapper.TryGetMeta(typeof(T), out var meta))
             {
-                LiteLogger.LogError("Room", $"广播失败: 未找到类型 {typeof(T).Name} 的网络元数据", RoomId);
+                NetLogger.LogError("Room", $"广播失败: 未找到类型 {typeof(T).Name} 的网络元数据", RoomId);
                 return;
             }
 
             if (meta.Dir != NetDir.S2C)
             {
-                LiteLogger.LogError("Room", $"广播阻断: 协议 {meta.Id} 方向为 {meta.Dir}，服务端只能发送 S2C", RoomId);
+                NetLogger.LogError("Room", $"广播阻断: 协议 {meta.Id} 方向为 {meta.Dir}，服务端只能发送 S2C", RoomId);
                 return;
             }
 
@@ -222,13 +223,13 @@ namespace StellarNet.Lite.Server.Core
 
             if (!NetMessageMapper.TryGetMeta(typeof(T), out var meta))
             {
-                LiteLogger.LogError("Room", $"发送失败: 未找到类型 {typeof(T).Name} 的网络元数据", RoomId, session.SessionId);
+                NetLogger.LogError("Room", $"发送失败: 未找到类型 {typeof(T).Name} 的网络元数据", RoomId, session.SessionId);
                 return;
             }
 
             if (meta.Dir != NetDir.S2C)
             {
-                LiteLogger.LogError("Room", $"发送阻断: 协议 {meta.Id} 方向为 {meta.Dir}，服务端只能发送 S2C", RoomId,
+                NetLogger.LogError("Room", $"发送阻断: 协议 {meta.Id} 方向为 {meta.Dir}，服务端只能发送 S2C", RoomId,
                     session.SessionId);
                 return;
             }
@@ -266,7 +267,7 @@ namespace StellarNet.Lite.Server.Core
             else
             {
                 IsRecording = false;
-                LiteLogger.LogWarning("Room", $"录像阻断: 录像帧数已达上限 {MaxReplayFrames}，自动停止录制", RoomId);
+                NetLogger.LogWarning("Room", $"录像阻断: 录像帧数已达上限 {MaxReplayFrames}，自动停止录制", RoomId);
             }
         }
 
@@ -299,7 +300,7 @@ namespace StellarNet.Lite.Server.Core
                 _finishedTickCount++;
                 if (_finishedTickCount > 300 && _members.Count > 0)
                 {
-                    LiteLogger.LogWarning("Room", $"僵尸清理: 结算已超时，强制清空残留的 {_members.Count} 名玩家", RoomId);
+                    NetLogger.LogWarning("Room", $"僵尸清理: 结算已超时，强制清空残留的 {_members.Count} 名玩家", RoomId);
                     var sessionsToKick = new List<Session>(_members.Values);
                     foreach (var s in sessionsToKick)
                     {

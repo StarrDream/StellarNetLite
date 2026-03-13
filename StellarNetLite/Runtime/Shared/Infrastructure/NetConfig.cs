@@ -67,7 +67,7 @@ namespace StellarNet.Lite.Shared.Infrastructure
             }
             catch (Exception e)
             {
-                LiteLogger.LogError($"[NetConfigLoader]",$"  读取配置异常: {e.Message}");
+                NetLogger.LogError($"[NetConfigLoader]",$"  读取配置异常: {e.Message}");
                 return new NetConfig();
             }
         }
@@ -82,7 +82,7 @@ namespace StellarNet.Lite.Shared.Infrastructure
 
             if (!File.Exists(fullPath))
             {
-                LiteLogger.LogWarning($"[NetConfigLoader]",$"  未找到配置文件 {fullPath}，将使用默认配置启动服务器。");
+                NetLogger.LogWarning($"[NetConfigLoader]",$"  未找到配置文件 {fullPath}，将使用默认配置启动服务器。");
                 return new NetConfig();
             }
 
@@ -94,7 +94,7 @@ namespace StellarNet.Lite.Shared.Infrastructure
             }
             catch (Exception e)
             {
-                LiteLogger.LogError($"[NetConfigLoader] ",$" 服务端同步读取配置异常: {e.Message}");
+                NetLogger.LogError($"[NetConfigLoader] ",$" 服务端同步读取配置异常: {e.Message}");
                 return new NetConfig();
             }
         }

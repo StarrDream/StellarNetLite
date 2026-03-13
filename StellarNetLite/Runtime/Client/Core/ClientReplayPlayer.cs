@@ -32,13 +32,13 @@ namespace StellarNet.Lite.Client.Core
         {
             if (file == null || file.Frames == null)
             {
-                LiteLogger.LogError("[ClientReplayPlayer]",$"  启动失败: 回放文件为空");
+                NetLogger.LogError("[ClientReplayPlayer]",$"  启动失败: 回放文件为空");
                 return;
             }
 
             if (_app.State != ClientAppState.InLobby)
             {
-                LiteLogger.LogError($"[ClientReplayPlayer] ",$" 启动阻断: 当前状态为 {_app.State}，必须在 Idle 状态下才能进入回放");
+                NetLogger.LogError($"[ClientReplayPlayer] ",$" 启动阻断: 当前状态为 {_app.State}，必须在 Idle 状态下才能进入回放");
                 return;
             }
 
@@ -49,7 +49,7 @@ namespace StellarNet.Lite.Client.Core
             _tickAccumulator = 0f;
 
             RestartSandbox();
-            LiteLogger.LogInfo(
+            NetLogger.LogInfo(
                 $"[ClientReplayPlayer] ",$" 回放启动: 房间 {file.RoomId}, 总帧数 {file.Frames.Count}, 总 Tick {GetTotalTicks()}");
         }
 
@@ -59,7 +59,7 @@ namespace StellarNet.Lite.Client.Core
             _isPlaying = false;
             _currentFile = null;
             _app.LeaveRoom();
-            LiteLogger.LogInfo("[ClientReplayPlayer]",$"  回放结束，已清理沙盒");
+            NetLogger.LogInfo("[ClientReplayPlayer]",$"  回放结束，已清理沙盒");
         }
 
         public void Update(float deltaTime)
@@ -77,7 +77,7 @@ namespace StellarNet.Lite.Client.Core
                 if (CurrentTick > GetTotalTicks())
                 {
                     IsPaused = true;
-                    LiteLogger.LogInfo("[ClientReplayPlayer]",$"  回放播放完毕，已自动暂停");
+                    NetLogger.LogInfo("[ClientReplayPlayer]",$"  回放播放完毕，已自动暂停");
                     break;
                 }
             }
@@ -120,7 +120,7 @@ namespace StellarNet.Lite.Client.Core
 
             if (!buildSuccess)
             {
-                LiteLogger.LogError($"[ClientReplayPlayer]",$"  回放房间 {_currentFile.RoomId} 本地装配失败，强制终止回放");
+                NetLogger.LogError($"[ClientReplayPlayer]",$"  回放房间 {_currentFile.RoomId} 本地装配失败，强制终止回放");
                 StopReplay();
                 return;
             }

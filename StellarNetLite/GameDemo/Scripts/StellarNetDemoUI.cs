@@ -71,12 +71,12 @@ namespace StellarNet.Lite.Demo
                 }
                 catch (Exception e)
                 {
-                    LiteLogger.LogError("DemoUI", $"录像解析异常: {e.Message}");
+                    NetLogger.LogError("DemoUI", $"录像解析异常: {e.Message}");
                 }
             }
             else
             {
-                LiteLogger.LogError("DemoUI", $"录像下载或解析失败: {evt.Reason}");
+                NetLogger.LogError("DemoUI", $"录像下载或解析失败: {evt.Reason}");
             }
         }
 

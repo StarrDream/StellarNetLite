@@ -24,7 +24,7 @@ namespace StellarNet.Lite.Client.Modules
 
             if (_app.State == ClientAppState.ReplayRoom)
             {
-                LiteLogger.LogWarning("[ClientRoomModule]", $"拦截: 当前处于回放模式，忽略建房结果");
+                NetLogger.LogWarning("[ClientRoomModule]", $"拦截: 当前处于回放模式，忽略建房结果");
                 return;
             }
 
@@ -35,18 +35,18 @@ namespace StellarNet.Lite.Client.Modules
 
                 if (!buildSuccess)
                 {
-                    LiteLogger.LogError($"[ClientRoomModule]", $"房间 {msg.RoomId} 本地装配失败，已强制销毁本地实例并终止握手");
+                    NetLogger.LogError($"[ClientRoomModule]", $"房间 {msg.RoomId} 本地装配失败，已强制销毁本地实例并终止握手");
                     _app.LeaveRoom();
                     return;
                 }
 
-                LiteLogger.LogInfo($"[ClientRoomModule]", $"建房成功, 本地装配完毕，准备发送就绪握手。房间: {msg.RoomId}");
+                NetLogger.LogInfo($"[ClientRoomModule]", $"建房成功, 本地装配完毕，准备发送就绪握手。房间: {msg.RoomId}");
                 var readyMsg = new C2S_RoomSetupReady { RoomId = msg.RoomId };
                 _app.SendMessage(readyMsg);
             }
             else
             {
-                LiteLogger.LogError($"[ClientRoomModule]", $"建房失败: {msg.Reason}");
+                NetLogger.LogError($"[ClientRoomModule]", $"建房失败: {msg.Reason}");
             }
 
             GlobalTypeNetEvent.Broadcast(msg);
@@ -59,7 +59,7 @@ namespace StellarNet.Lite.Client.Modules
 
             if (_app.State == ClientAppState.ReplayRoom)
             {
-                LiteLogger.LogWarning("[ClientRoomModule]", $"拦截: 当前处于回放模式，忽略加房结果");
+                NetLogger.LogWarning("[ClientRoomModule]", $"拦截: 当前处于回放模式，忽略加房结果");
                 return;
             }
 
@@ -70,18 +70,18 @@ namespace StellarNet.Lite.Client.Modules
 
                 if (!buildSuccess)
                 {
-                    LiteLogger.LogError($"[ClientRoomModule]", $"房间 {msg.RoomId} 本地装配失败，已强制销毁本地实例并终止握手");
+                    NetLogger.LogError($"[ClientRoomModule]", $"房间 {msg.RoomId} 本地装配失败，已强制销毁本地实例并终止握手");
                     _app.LeaveRoom();
                     return;
                 }
 
-                LiteLogger.LogInfo($"[ClientRoomModule]", $"加房成功, 本地装配完毕，准备发送就绪握手。房间: {msg.RoomId}");
+                NetLogger.LogInfo($"[ClientRoomModule]", $"加房成功, 本地装配完毕，准备发送就绪握手。房间: {msg.RoomId}");
                 var readyMsg = new C2S_RoomSetupReady { RoomId = msg.RoomId };
                 _app.SendMessage(readyMsg);
             }
             else
             {
-                LiteLogger.LogError($"[ClientRoomModule]", $"加房失败: {msg.Reason}");
+                NetLogger.LogError($"[ClientRoomModule]", $"加房失败: {msg.Reason}");
             }
 
             GlobalTypeNetEvent.Broadcast(msg);
@@ -94,12 +94,12 @@ namespace StellarNet.Lite.Client.Modules
 
             if (_app.State == ClientAppState.ReplayRoom)
             {
-                LiteLogger.LogWarning("[ClientRoomModule]", $"拦截: 当前处于回放模式，忽略离房结果");
+                NetLogger.LogWarning("[ClientRoomModule]", $"拦截: 当前处于回放模式，忽略离房结果");
                 return;
             }
 
             _app.LeaveRoom();
-            LiteLogger.LogInfo("[ClientRoomModule]", $"已离开房间");
+            NetLogger.LogInfo("[ClientRoomModule]", $"已离开房间");
 
             GlobalTypeNetEvent.Broadcast(msg);
         }

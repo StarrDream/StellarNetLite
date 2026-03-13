@@ -43,7 +43,7 @@ namespace StellarNet.Lite.Shared.Core
                         {
                             if (_typeToMetaCache.ContainsKey(type))
                             {
-                                LiteLogger.LogError($"[NetMessageMapper] ",$" 致命错误: 发现重复的协议类型 {type.Name}，请检查代码！");
+                                NetLogger.LogError($"[NetMessageMapper] ",$" 致命错误: 发现重复的协议类型 {type.Name}，请检查代码！");
                                 continue;
                             }
 
@@ -54,19 +54,19 @@ namespace StellarNet.Lite.Shared.Core
                 catch (ReflectionTypeLoadException ex)
                 {
                     // 核心修复 (Point 3)：暴露 LoaderExceptions，防止第三方 DLL 冲突导致的静默失败
-                    LiteLogger.LogError(
+                    NetLogger.LogError(
                         $"[NetMessageMapper]",$"  扫描程序集 {assembly.FullName} 时发生 ReflectionTypeLoadException，协议扫描可能不完整！");
                     foreach (var loaderEx in ex.LoaderExceptions)
                     {
                         if (loaderEx != null)
                         {
-                            LiteLogger.LogError($"[NetMessageMapper]",$"  LoaderException 明细: {loaderEx.Message}");
+                            NetLogger.LogError($"[NetMessageMapper]",$"  LoaderException 明细: {loaderEx.Message}");
                         }
                     }
                 }
                 catch (Exception e)
                 {
-                    LiteLogger.LogError($"[NetMessageMapper]",$"  扫描程序集 {assembly.FullName} 时发生未知异常: {e.Message}");
+                    NetLogger.LogError($"[NetMessageMapper]",$"  扫描程序集 {assembly.FullName} 时发生未知异常: {e.Message}");
                 }
             }
 
@@ -82,7 +82,7 @@ namespace StellarNet.Lite.Shared.Core
             int globalCount = _typeToMetaCache.Values.Count(m => m.Scope == NetScope.Global);
             int roomCount = _typeToMetaCache.Values.Count(m => m.Scope == NetScope.Room);
 
-            LiteLogger.LogInfo(
+            NetLogger.LogInfo(
                 $"<color=cyan>[StellarNet 协议加载报告] ",$" 总协议数: {_typeToMetaCache.Count} | C2S: {c2sCount} | S2C: {s2cCount} | Global: {globalCount} | Room: {roomCount}</color>");
 
             // 最小核心协议校验 (100: Login, 200: CreateRoom, 202: JoinRoom)
@@ -92,7 +92,7 @@ namespace StellarNet.Lite.Shared.Core
 
             if (!hasLogin || !hasCreateRoom || !hasJoinRoom)
             {
-                LiteLogger.LogError(
+                NetLogger.LogError(
                     "[NetMessageMapper] 致命阻断: 核心调度协议",$"  (Login/CreateRoom/JoinRoom) 缺失！请检查 MsgIdConst 或协议定义文件是否被意外移除。");
             }
         }
@@ -101,21 +101,21 @@ namespace StellarNet.Lite.Shared.Core
         {
             if (!_isInitialized)
             {
-                LiteLogger.LogError("[NetMessageMapper]",$"  尚未初始化，请先调用 Initialize()！");
+                NetLogger.LogError("[NetMessageMapper]",$"  尚未初始化，请先调用 Initialize()！");
                 meta = null;
                 return false;
             }
 
             if (msgType == null)
             {
-                LiteLogger.LogError("[NetMessageMapper] ",$" 查询失败: 传入的消息类型为空。");
+                NetLogger.LogError("[NetMessageMapper] ",$" 查询失败: 传入的消息类型为空。");
                 meta = null;
                 return false;
             }
 
             if (!_typeToMetaCache.TryGetValue(msgType, out meta))
             {
-                LiteLogger.LogError($"[NetMessageMapper]",$"  查询失败: 类型 {msgType.Name} 缺失 [NetMsg] 特性，无法进行强类型发包。");
+                NetLogger.LogError($"[NetMessageMapper]",$"  查询失败: 类型 {msgType.Name} 缺失 [NetMsg] 特性，无法进行强类型发包。");
                 return false;
             }
 

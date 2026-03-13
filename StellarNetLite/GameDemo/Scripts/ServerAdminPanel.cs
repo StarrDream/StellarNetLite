@@ -60,7 +60,7 @@ namespace StellarNet.Lite.Demo
                         var msg = new Shared.Protocol.S2C_KickOut { Reason = "被管理员强制踢出" };
                         _manager.ServerApp.SendMessageToSession(session, msg);
                         _manager.ServerApp.UnbindConnection(session);
-                        LiteLogger.LogWarning("ServerAdmin", "管理员触发强制踢出", "-", session.SessionId);
+                        NetLogger.LogWarning("ServerAdmin", "管理员触发强制踢出", "-", session.SessionId);
                     }
 
                     GUI.color = Color.white;
@@ -103,7 +103,7 @@ namespace StellarNet.Lite.Demo
                 if (GUILayout.Button("强制销毁房间"))
                 {
                     _manager.ServerApp.DestroyRoom(room.RoomId);
-                    LiteLogger.LogWarning("ServerAdmin", "管理员触发强制销毁房间", room.RoomId);
+                    NetLogger.LogWarning("ServerAdmin", "管理员触发强制销毁房间", room.RoomId);
                 }
 
                 GUI.color = Color.white;

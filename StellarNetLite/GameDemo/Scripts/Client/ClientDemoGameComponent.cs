@@ -19,12 +19,12 @@ namespace StellarNet.Lite.GameDemo.Client
 
         public override void OnInit()
         {
-            LiteLogger.LogInfo("[ClientDemoGame]", $"客户端业务组件初始化完毕，开始监听服务端同步数据");
+            NetLogger.LogInfo("[ClientDemoGame]", $"客户端业务组件初始化完毕，开始监听服务端同步数据");
         }
 
         public override void OnDestroy()
         {
-            LiteLogger.LogInfo("[ClientDemoGame]", $"客户端业务组件销毁，清理相关状态");
+            NetLogger.LogInfo("[ClientDemoGame]", $"客户端业务组件销毁，清理相关状态");
         }
 
         [NetHandler]

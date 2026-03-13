@@ -42,7 +42,7 @@ namespace StellarNet.Lite.Server.Modules
                 }
                 catch (Exception e)
                 {
-                    LiteLogger.LogError("ServerReplayModule", $"读取录像列表异常: {e.Message}", "-", session.SessionId);
+                    NetLogger.LogError("ServerReplayModule", $"读取录像列表异常: {e.Message}", "-", session.SessionId);
                 }
             }
 
@@ -61,7 +61,7 @@ namespace StellarNet.Lite.Server.Modules
 
             if (!File.Exists(fullPath))
             {
-                LiteLogger.LogWarning("ServerReplayModule", $"请求的录像文件不存在: {msg.ReplayId}", "-", session.SessionId);
+                NetLogger.LogWarning("ServerReplayModule", $"请求的录像文件不存在: {msg.ReplayId}", "-", session.SessionId);
                 var notFoundRes = new S2C_DownloadReplayResult
                 {
                     Success = false,
@@ -84,11 +84,11 @@ namespace StellarNet.Lite.Server.Modules
                     Reason = string.Empty
                 };
                 _app.SendMessageToSession(session, res);
-                LiteLogger.LogInfo("ServerReplayModule", $"已向客户端下发录像 {msg.ReplayId}", "-", session.SessionId);
+                NetLogger.LogInfo("ServerReplayModule", $"已向客户端下发录像 {msg.ReplayId}", "-", session.SessionId);
             }
             catch (Exception e)
             {
-                LiteLogger.LogError("ServerReplayModule", $"读取录像文件异常: {e.Message}", "-", session.SessionId);
+                NetLogger.LogError("ServerReplayModule", $"读取录像文件异常: {e.Message}", "-", session.SessionId);
                 var errorRes = new S2C_DownloadReplayResult
                 {
                     Success = false,

@@ -25,13 +25,13 @@ namespace StellarNet.Lite.Server.Modules
         {
             if (session == null || msg == null || string.IsNullOrEmpty(msg.AccountId))
             {
-                LiteLogger.LogError("ServerUserModule", $"登录失败: 参数非法", "-", session?.SessionId);
+                NetLogger.LogError("ServerUserModule", $"登录失败: 参数非法", "-", session?.SessionId);
                 return;
             }
 
             if (string.IsNullOrEmpty(msg.ClientVersion))
             {
-                LiteLogger.LogWarning("ServerUserModule", "登录拦截: 客户端未提供版本号", "-", session.SessionId);
+                NetLogger.LogWarning("ServerUserModule", "登录拦截: 客户端未提供版本号", "-", session.SessionId);
                 var rejectRes = new S2C_LoginResult { Success = false, Reason = "客户端版本过旧，请更新游戏" };
                 _app.SendMessageToSession(session, rejectRes);
                 return;
@@ -42,7 +42,7 @@ namespace StellarNet.Lite.Server.Modules
             {
                 if (clientVer < minVer)
                 {
-                    LiteLogger.LogWarning("ServerUserModule",
+                    NetLogger.LogWarning("ServerUserModule",
                         $"登录拦截: 客户端版本 {msg.ClientVersion} 低于最低要求 {_app.Config.MinClientVersion}", "-", session.SessionId);
                     var rejectRes = new S2C_LoginResult
                         { Success = false, Reason = $"客户端版本过旧，请在Unity中更新至 {_app.Config.MinClientVersion} 或以上版本" };
@@ -52,7 +52,7 @@ namespace StellarNet.Lite.Server.Modules
             }
             else if (msg.ClientVersion != _app.Config.MinClientVersion)
             {
-                LiteLogger.LogWarning("ServerUserModule",
+                NetLogger.LogWarning("ServerUserModule",
                     $"登录拦截: 客户端版本 {msg.ClientVersion} 不匹配要求 {_app.Config.MinClientVersion}", "-", session.SessionId);
                 var rejectRes = new S2C_LoginResult
                     { Success = false, Reason = $"客户端版本不匹配，请更新至 {_app.Config.MinClientVersion}" };
@@ -64,7 +64,7 @@ namespace StellarNet.Lite.Server.Modules
             {
                 if (oldSession.IsOnline)
                 {
-                    LiteLogger.LogWarning("ServerUserModule", $"账号在其他设备登录，踢出旧连接", oldSession.CurrentRoomId,
+                    NetLogger.LogWarning("ServerUserModule", $"账号在其他设备登录，踢出旧连接", oldSession.CurrentRoomId,
                         oldSession.SessionId);
                     var kickMsg = new S2C_KickOut { Reason = "账号在其他设备登录" };
                     _app.SendMessageToSession(oldSession, kickMsg);
@@ -87,7 +87,7 @@ namespace StellarNet.Lite.Server.Modules
                     Reason = string.Empty
                 };
                 _app.SendMessageToSession(oldSession, reconnectRes);
-                LiteLogger.LogInfo("ServerUserModule", $"玩家断线重连(顶号)成功，Seq 状态已重置对齐", oldSession.CurrentRoomId,
+                NetLogger.LogInfo("ServerUserModule", $"玩家断线重连(顶号)成功，Seq 状态已重置对齐", oldSession.CurrentRoomId,
                     oldSession.SessionId);
                 return;
             }
@@ -106,7 +106,7 @@ namespace StellarNet.Lite.Server.Modules
                 Reason = string.Empty
             };
             _app.SendMessageToSession(authSession, res);
-            LiteLogger.LogInfo("ServerUserModule", $"玩家全新登录成功", "-", authSession.SessionId);
+            NetLogger.LogInfo("ServerUserModule", $"玩家全新登录成功", "-", authSession.SessionId);
         }
 
         [NetHandler]
@@ -156,19 +156,19 @@ namespace StellarNet.Lite.Server.Modules
             string roomId = session.CurrentRoomId;
             if (string.IsNullOrEmpty(roomId))
             {
-                LiteLogger.LogError("ServerUserModule", "握手阻断: 尚未绑定房间，无法下发快照", "-", session.SessionId);
+                NetLogger.LogError("ServerUserModule", "握手阻断: 尚未绑定房间，无法下发快照", "-", session.SessionId);
                 return;
             }
 
             Room room = _app.GetRoom(roomId);
             if (room == null)
             {
-                LiteLogger.LogError("ServerUserModule", "握手阻断: 房间不存在", roomId, session.SessionId);
+                NetLogger.LogError("ServerUserModule", "握手阻断: 房间不存在", roomId, session.SessionId);
                 return;
             }
 
             room.TriggerReconnectSnapshot(session);
-            LiteLogger.LogInfo("ServerUserModule", "客户端装配就绪，已下发房间全量快照", roomId, session.SessionId);
+            NetLogger.LogInfo("ServerUserModule", "客户端装配就绪，已下发房间全量快照", roomId, session.SessionId);
         }
     }
 }

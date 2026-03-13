@@ -36,7 +36,7 @@ namespace StellarNet.Lite.Server.Core
         {
             if (string.IsNullOrEmpty(roomId))
             {
-                LiteLogger.LogError("Session", "绑定房间失败: 传入的 roomId 为空", "-", SessionId);
+                NetLogger.LogError("Session", "绑定房间失败: 传入的 roomId 为空", "-", SessionId);
                 return;
             }
 

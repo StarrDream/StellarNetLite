@@ -71,21 +71,21 @@ namespace StellarNet.Lite.Shared.Infrastructure
 
             NetworkServer.RegisterHandler<MirrorPacketMsg>(OnServerReceivePacket, false);
 
-            LiteLogger.LogInfo("StellarNetManager", $"服务端装配完毕，开始监听网络请求。TickRate: {NetworkServer.tickRate}, MaxConn: {this.maxConnections}");
+            NetLogger.LogInfo("StellarNetManager", $"服务端装配完毕，开始监听网络请求。TickRate: {NetworkServer.tickRate}, MaxConn: {this.maxConnections}");
             OnServerStartedEvent?.Invoke();
         }
 
         public override void OnStopServer()
         {
             OnServerStoppedEvent?.Invoke();
-            LiteLogger.LogInfo("StellarNetManager", "服务端物理节点已停止运行");
+            NetLogger.LogInfo("StellarNetManager", "服务端物理节点已停止运行");
             base.OnStopServer();
         }
 
         public override void OnServerConnect(NetworkConnectionToClient conn)
         {
             base.OnServerConnect(conn);
-            LiteLogger.LogInfo("StellarNetManager", $"物理连接建立", "-", "-", $"ConnId:{conn.connectionId}");
+            NetLogger.LogInfo("StellarNetManager", $"物理连接建立", "-", "-", $"ConnId:{conn.connectionId}");
             OnServerClientConnectedEvent?.Invoke(conn.connectionId);
         }
 
@@ -96,7 +96,7 @@ namespace StellarNet.Lite.Shared.Infrastructure
                 var session = ServerApp.TryGetSessionByConnectionId(conn.connectionId);
                 if (session != null)
                 {
-                    LiteLogger.LogInfo("StellarNetManager", $"物理连接断开，触发会话离线", "-", session.SessionId, $"ConnId:{conn.connectionId}");
+                    NetLogger.LogInfo("StellarNetManager", $"物理连接断开，触发会话离线", "-", session.SessionId, $"ConnId:{conn.connectionId}");
                     ServerApp.UnbindConnection(session);
                 }
             }
@@ -141,21 +141,21 @@ namespace StellarNet.Lite.Shared.Infrastructure
 
             NetworkClient.RegisterHandler<MirrorPacketMsg>(OnClientReceivePacket, false);
 
-            LiteLogger.LogInfo("StellarNetManager", "客户端装配完毕，准备就绪。");
+            NetLogger.LogInfo("StellarNetManager", "客户端装配完毕，准备就绪。");
             OnClientStartedEvent?.Invoke();
         }
 
         public override void OnStopClient()
         {
             OnClientStoppedEvent?.Invoke();
-            LiteLogger.LogInfo("StellarNetManager", "客户端物理节点已停止运行");
+            NetLogger.LogInfo("StellarNetManager", "客户端物理节点已停止运行");
             base.OnStopClient();
         }
 
         public override void OnClientConnect()
         {
             base.OnClientConnect();
-            LiteLogger.LogInfo("StellarNetManager", "成功连接到服务端");
+            NetLogger.LogInfo("StellarNetManager", "成功连接到服务端");
             OnClientConnectedEvent?.Invoke();
         }
 
@@ -163,7 +163,7 @@ namespace StellarNet.Lite.Shared.Infrastructure
         {
             if (ClientApp != null)
             {
-                LiteLogger.LogInfo("StellarNetManager", "与服务端的物理连接断开，清理本地房间与会话状态");
+                NetLogger.LogInfo("StellarNetManager", "与服务端的物理连接断开，清理本地房间与会话状态");
                 ClientApp.LeaveRoom();
                 ClientApp.Session.Clear();
             }
