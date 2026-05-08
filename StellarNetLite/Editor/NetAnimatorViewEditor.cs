@@ -581,7 +581,16 @@ namespace StellarNet.Lite.Editor
                 }
 
                 EditorGUILayout.BeginVertical("box");
+                EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField("手动状态映射", EditorStyles.boldLabel);
+                if (GUILayout.Button("删除此映射", GUILayout.Width(90f)))
+                {
+                    _syncedStatesProp.DeleteArrayElementAtIndex(i);
+                    EditorGUILayout.EndHorizontal();
+                    EditorGUILayout.EndVertical();
+                    break;
+                }
+                EditorGUILayout.EndHorizontal();
                 EditorGUILayout.PropertyField(entryProp.FindPropertyRelative("Enabled"));
                 EditorGUILayout.PropertyField(entryProp.FindPropertyRelative("LogicStateName"));
                 EditorGUILayout.PropertyField(entryProp.FindPropertyRelative("AnimatorStateName"));
@@ -601,7 +610,16 @@ namespace StellarNet.Lite.Editor
                 }
 
                 EditorGUILayout.BeginVertical("box");
+                EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField("手动参数映射", EditorStyles.boldLabel);
+                if (GUILayout.Button("删除此映射", GUILayout.Width(90f)))
+                {
+                    _syncedFloatParamsProp.DeleteArrayElementAtIndex(i);
+                    EditorGUILayout.EndHorizontal();
+                    EditorGUILayout.EndVertical();
+                    break;
+                }
+                EditorGUILayout.EndHorizontal();
                 EditorGUILayout.PropertyField(entryProp.FindPropertyRelative("Enabled"));
                 EditorGUILayout.PropertyField(entryProp.FindPropertyRelative("LogicParamName"));
                 EditorGUILayout.PropertyField(entryProp.FindPropertyRelative("AnimatorParamName"));
