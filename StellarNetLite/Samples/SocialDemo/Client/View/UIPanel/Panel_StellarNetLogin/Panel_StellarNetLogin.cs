@@ -52,16 +52,19 @@ public class Panel_StellarNetLogin : UIPanelBase
     /// 是否正在等待登录或重连结果。
     /// </summary>
     private bool _isRequesting;
+    private bool _isConnectingServer;
 
     /// <summary>
     /// 最近一次请求开始时间。
     /// </summary>
     private float _requestStartTime;
+    private float _connectAttemptStartTime;
 
     /// <summary>
     /// 登录或重连的超时时间。
     /// </summary>
     private const float RequestTimeoutSeconds = 5f;
+    private const float ConnectAttemptTimeoutSeconds = 4f;
 
     /// <summary>
     /// 初始化登录面板事件和网络状态监听。
@@ -92,6 +95,7 @@ public class Panel_StellarNetLogin : UIPanelBase
     {
         base.OnOpen(uiData);
         _isRequesting = false;
+        _isConnectingServer = false;
 
         if (reconnectGroupTrans != null) reconnectGroupTrans.gameObject.SetActive(false);
         if (loginBtn != null) loginBtn.interactable = true;
@@ -130,6 +134,26 @@ public class Panel_StellarNetLogin : UIPanelBase
     /// </summary>
     private void Update()
     {
+        if (_isConnectingServer && !GameLauncher.Instance.IsClientConnectedServer)
+        {
+            if (Time.realtimeSinceStartup - _connectAttemptStartTime > ConnectAttemptTimeoutSeconds)
+            {
+                _isConnectingServer = false;
+                if (restartClientBtn != null)
+                {
+                    restartClientBtn.gameObject.SetActive(true);
+                    restartClientBtn.interactable = true;
+                }
+
+                if (loginStatusTxt != null)
+                {
+                    loginStatusTxt.text = "<color=red>Server offline, retry available</color>";
+                }
+
+                NetLogger.LogWarning("Panel_StellarNetLogin", "manual server reconnect timed out, UI restored");
+            }
+        }
+
         if (_isRequesting)
         {
             if (Time.realtimeSinceStartup - _requestStartTime > RequestTimeoutSeconds)
@@ -150,6 +174,7 @@ public class Panel_StellarNetLogin : UIPanelBase
     /// </summary>
     private void OnClientConnected()
     {
+        _isConnectingServer = false;
         restartClientBtn.gameObject.SetActive(false);
         restartClientBtn.interactable = false;
         loginStatusTxt.text = "<color=green>服务端已连接</color>";
@@ -160,6 +185,7 @@ public class Panel_StellarNetLogin : UIPanelBase
     /// </summary>
     private void OnClientDisconnected()
     {
+        _isConnectingServer = false;
         restartClientBtn.gameObject.SetActive(true);
         restartClientBtn.interactable = true;
         loginStatusTxt.text = "<color=red>服务端已断开</color>";
@@ -203,7 +229,19 @@ public class Panel_StellarNetLogin : UIPanelBase
     private void OnRestartClientBtnClick()
     {
         if (GameLauncher.Instance.IsClientConnectedServer) return;
+        if (GameLauncher.AppManager == null)
+        {
+            NetLogger.LogWarning("Panel_StellarNetLogin", "manual server reconnect skipped, AppManager is null");
+            return;
+        }
+
+        _isConnectingServer = true;
+        _connectAttemptStartTime = Time.realtimeSinceStartup;
         restartClientBtn.interactable = false;
+        if (loginStatusTxt != null)
+        {
+            loginStatusTxt.text = "<color=yellow>Connecting server...</color>";
+        }
 
         GameLauncher.AppManager.StopClient();
         GameLauncher.Instance.StartClient();

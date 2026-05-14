@@ -41,6 +41,9 @@ namespace StellarNet.Lite.Client.Infrastructure
 
         // 最后一次收到 Pong 或任意网络包的时间。
         private float _lastPongReceiveTime;
+        private float _lastPacketReceiveTime;
+        private int _consecutiveTimeouts;
+        private bool _physicalUnavailableLogged;
 
         // 主动发送探测 Ping 的间隔。
         private const float PingInterval = 1f;
@@ -57,9 +60,10 @@ namespace StellarNet.Lite.Client.Infrastructure
         public float WeakNetBlockRttMs = 400f;
 
         /// <summary>
-        /// 阻断态持续超过该时间后主动断开连接。
+        /// 物理连接长时间无包时主动断开的无包时长阈值。
         /// </summary>
         public float ActiveFuseTimeoutSeconds = 5f;
+        private const int PhysicalUnavailableTimeoutCount = 3;
 
         /// <summary>
         /// 初始化弱网监控器。
@@ -73,6 +77,9 @@ namespace StellarNet.Lite.Client.Infrastructure
             _pingTimer = 0f;
             _currentRttMs = 0f;
             _lastPongReceiveTime = 0f;
+            _lastPacketReceiveTime = 0f;
+            _consecutiveTimeouts = 0;
+            _physicalUnavailableLogged = false;
 
             GlobalTypeNetEvent.Register<Local_PingResult>(OnPingResult).UnRegisterWhenGameObjectDestroyed(gameObject);
             NetLogger.LogInfo(
@@ -87,7 +94,10 @@ namespace StellarNet.Lite.Client.Infrastructure
         private void OnPingResult(Local_PingResult evt)
         {
             _currentRttMs = evt.RttMs;
-            _lastPongReceiveTime = Time.realtimeSinceStartup;
+            float now = evt.ReceivedRealtime > 0f ? evt.ReceivedRealtime : Time.realtimeSinceStartup;
+            _lastPongReceiveTime = now;
+            _lastPacketReceiveTime = now;
+            _consecutiveTimeouts = 0;
         }
 
         /// <summary>
@@ -95,7 +105,7 @@ namespace StellarNet.Lite.Client.Infrastructure
         /// </summary>
         public void OnPacketReceived()
         {
-            _lastPongReceiveTime = Time.realtimeSinceStartup;
+            _lastPacketReceiveTime = Time.realtimeSinceStartup;
         }
 
         /// <summary>
@@ -105,12 +115,17 @@ namespace StellarNet.Lite.Client.Infrastructure
         {
             if (_app == null || _transport == null || _app.State != ClientAppState.OnlineRoom)
             {
+                _blockDuration = 0f;
+                _currentRttMs = 0f;
+                _lastPongReceiveTime = 0f;
+                _lastPacketReceiveTime = 0f;
+                _consecutiveTimeouts = 0;
+                _physicalUnavailableLogged = false;
+
                 if (_isWarnTriggered || _isBlockTriggered)
                 {
                     _isWarnTriggered = false;
                     _isBlockTriggered = false;
-                    _blockDuration = 0f;
-                    _lastPongReceiveTime = 0f;
 
                     if (_app != null)
                     {
@@ -121,7 +136,10 @@ namespace StellarNet.Lite.Client.Infrastructure
                     {
                         RttMs = 0,
                         IsWeakNetWarn = false,
-                        IsWeakNetBlock = false
+                        IsWeakNetBlock = false,
+                        LastPacketAgeSeconds = 0f,
+                        ConsecutiveTimeouts = 0,
+                        IsPhysicalUnavailable = false
                     });
                     NetLogger.LogInfo("ClientNetworkMonitor", "监控重置: 已离开在线房间");
                 }
@@ -134,15 +152,27 @@ namespace StellarNet.Lite.Client.Infrastructure
                 _lastPongReceiveTime = Time.realtimeSinceStartup;
             }
 
+            if (_lastPacketReceiveTime == 0f)
+            {
+                _lastPacketReceiveTime = Time.realtimeSinceStartup;
+            }
+
             _pingTimer += Time.deltaTime;
             if (_pingTimer >= PingInterval)
             {
                 _pingTimer = 0f;
+                if (Time.realtimeSinceStartup - _lastPongReceiveTime > PingInterval * 2f)
+                {
+                    _consecutiveTimeouts++;
+                }
+
                 NetClient.Send(new C2S_Ping { ClientTime = Time.realtimeSinceStartup });
             }
 
             float rttMs = _currentRttMs;
             float timeSinceLastPong = Time.realtimeSinceStartup - _lastPongReceiveTime;
+            float lastPacketAgeSeconds = Time.realtimeSinceStartup - _lastPacketReceiveTime;
+            bool isPhysicalUnavailable = lastPacketAgeSeconds >= ActiveFuseTimeoutSeconds;
             if (timeSinceLastPong > 2.0f)
             {
                 rttMs = timeSinceLastPong * 1000f;
@@ -153,28 +183,45 @@ namespace StellarNet.Lite.Client.Infrastructure
             bool shouldBlock = rttMs >= WeakNetBlockRttMs;
             bool shouldWarn = rttMs >= WeakNetWarnRttMs && !shouldBlock;
 
+            if (isPhysicalUnavailable && !_physicalUnavailableLogged)
+            {
+                _physicalUnavailableLogged = true;
+                NetLogger.LogWarning("ClientNetworkMonitor", $"physical connection unavailable suspected. LastPacketAge:{lastPacketAgeSeconds:F2}s, ConsecutiveTimeouts:{_consecutiveTimeouts}, Rtt:{Mathf.RoundToInt(rttMs)}ms");
+            }
+            else if (!isPhysicalUnavailable && _physicalUnavailableLogged)
+            {
+                _physicalUnavailableLogged = false;
+                NetLogger.LogInfo("ClientNetworkMonitor", $"physical connection recovered. LastPacketAge:{lastPacketAgeSeconds:F2}s, ConsecutiveTimeouts:{_consecutiveTimeouts}, Rtt:{Mathf.RoundToInt(rttMs)}ms");
+            }
+
             if (shouldBlock)
             {
                 _blockDuration += Time.deltaTime;
-                if (_blockDuration >= ActiveFuseTimeoutSeconds)
-                {
-                    NetLogger.LogWarning(
-                        "ClientNetworkMonitor",
-                        $"熔断断开: 阻断超时, Rtt:{Mathf.RoundToInt(rttMs)}ms, Duration:{_blockDuration:F2}s");
-
-                    _blockDuration = 0f;
-                    _isBlockTriggered = false;
-                    _isWarnTriggered = false;
-                    _lastPongReceiveTime = 0f;
-                    _app.IsNetworkBlocked = false;
-
-                    _transport.StopClient();
-                    return;
-                }
             }
             else
             {
                 _blockDuration = 0f;
+            }
+
+            bool shouldFuseDisconnect = isPhysicalUnavailable &&
+                                        _consecutiveTimeouts >= PhysicalUnavailableTimeoutCount;
+            if (shouldFuseDisconnect)
+            {
+                NetLogger.LogWarning(
+                    "ClientNetworkMonitor",
+                    $"physical fuse disconnect: Rtt:{Mathf.RoundToInt(rttMs)}ms, BlockDuration:{_blockDuration:F2}s, LastPacketAge:{lastPacketAgeSeconds:F2}s, ConsecutiveTimeouts:{_consecutiveTimeouts}, TimeoutThreshold:{PhysicalUnavailableTimeoutCount}");
+
+                _blockDuration = 0f;
+                _isBlockTriggered = false;
+                _isWarnTriggered = false;
+                _lastPongReceiveTime = 0f;
+                _lastPacketReceiveTime = 0f;
+                _consecutiveTimeouts = 0;
+                _physicalUnavailableLogged = false;
+                _app.IsNetworkBlocked = false;
+
+                _transport.StopClient();
+                return;
             }
 
             bool stateChanged = shouldBlock != _isBlockTriggered || shouldWarn != _isWarnTriggered;
@@ -191,7 +238,10 @@ namespace StellarNet.Lite.Client.Infrastructure
                 {
                     RttMs = Mathf.RoundToInt(rttMs),
                     IsWeakNetWarn = _isWarnTriggered,
-                    IsWeakNetBlock = _isBlockTriggered
+                    IsWeakNetBlock = _isBlockTriggered,
+                    LastPacketAgeSeconds = lastPacketAgeSeconds,
+                    ConsecutiveTimeouts = _consecutiveTimeouts,
+                    IsPhysicalUnavailable = isPhysicalUnavailable
                 });
             }
 

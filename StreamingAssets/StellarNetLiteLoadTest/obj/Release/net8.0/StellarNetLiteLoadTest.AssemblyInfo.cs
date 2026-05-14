@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("StellarNetLiteLoadTest")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c69a719fede3ead923b1c0c3895fface50d0221e")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4cc6466f98a2b953844e243186f822edd9a7b980")]
 [assembly: System.Reflection.AssemblyProductAttribute("StellarNetLiteLoadTest")]
 [assembly: System.Reflection.AssemblyTitleAttribute("StellarNetLiteLoadTest")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

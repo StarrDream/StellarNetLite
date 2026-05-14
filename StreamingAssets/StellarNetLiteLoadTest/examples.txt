@@ -1,17 +1,25 @@
-Quick examples
+快速示例
 
-Default KCP test:
+默认 KCP 压测：
 
 powershell -ExecutionPolicy Bypass -File .\Assets\StreamingAssets\StellarNetLiteLoadTest\run-loadtest.ps1
 
-5 rooms, 20 clients per room, KCP, run until stopped:
+5 个房间，每房 20 个客户端，KCP，持续运行直到手动停止：
 
 powershell -ExecutionPolicy Bypass -File .\Assets\StreamingAssets\StellarNetLiteLoadTest\run-loadtest.ps1 -Transport kcp -ServerHost 127.0.0.1 -Port 7777 -Rooms 5 -ClientsPerRoom 20 -Duration 0 -MoveRate 8
 
-10 rooms, 30 clients per room, slower connect rate:
+10 个房间，每房 30 个客户端，降低连接速率：
 
 powershell -ExecutionPolicy Bypass -File .\Assets\StreamingAssets\StellarNetLiteLoadTest\run-loadtest.ps1 -Transport kcp -ServerHost 127.0.0.1 -Port 7777 -Rooms 10 -ClientsPerRoom 30 -ConnectRate 20 -Duration 0 -MoveRate 8
 
-TCP comparison:
+TCP 对照压测：
 
 powershell -ExecutionPolicy Bypass -File .\Assets\StreamingAssets\StellarNetLiteLoadTest\run-loadtest.ps1 -Transport tcp -ServerHost 127.0.0.1 -Port 7777 -Rooms 5 -ClientsPerRoom 20 -Duration 0 -MoveRate 8
+
+10 分钟验收，KCP 5 rooms x 20 clients：
+
+powershell -ExecutionPolicy Bypass -File .\Assets\StreamingAssets\StellarNetLiteLoadTest\run-loadtest.ps1 -Transport kcp -ServerHost 127.0.0.1 -Port 7777 -Rooms 5 -ClientsPerRoom 20 -Duration 600 -MoveRate 8
+
+10 分钟验收，TCP 5 rooms x 20 clients：
+
+powershell -ExecutionPolicy Bypass -File .\Assets\StreamingAssets\StellarNetLiteLoadTest\run-loadtest.ps1 -Transport tcp -ServerHost 127.0.0.1 -Port 7777 -Rooms 5 -ClientsPerRoom 20 -Duration 600 -MoveRate 8

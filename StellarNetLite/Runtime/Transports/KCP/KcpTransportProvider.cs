@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net;
+using System.Threading;
 using kcp2k;
 using StellarNet.Lite.Shared.Core;
 using StellarNet.Lite.Shared.Infrastructure;
@@ -54,9 +55,15 @@ namespace StellarNet.Lite.Transports.KCP
         private bool _isServerActive;
         private bool _isClientActive;
         private long _serverKcpTotalPackets;
+        private long _serverKcpSentPackets;
         private long _serverKcpDeserializeFailures;
+        private long _serverKcpDisconnects;
+        private long _serverKcpErrors;
         private long _clientKcpTotalPackets;
+        private long _clientKcpSentPackets;
         private long _clientKcpDeserializeFailures;
+        private long _clientKcpDisconnects;
+        private long _clientKcpErrors;
 
         // 独立追踪物理层的真实连接状态，避免强依赖底层库内部属性，确保状态机流转清晰。
         private bool _isPhysicalConnected;
@@ -75,6 +82,11 @@ namespace StellarNet.Lite.Transports.KCP
             Log.Info = (msg) => NetLogger.LogInfo("kcp2k", msg);
             Log.Warning = (msg) => NetLogger.LogWarning("kcp2k", msg);
             Log.Error = (msg) => NetLogger.LogError("kcp2k", msg);
+        }
+
+        private string DescribeKcpRuntime()
+        {
+            return $"NoDelay:True, Interval:10, FastResend:2, CongestionWindow:False, SendWindow:4096, ReceiveWindow:4096, RecvBuffer:{1024 * 1024 * 8}, SendBuffer:{1024 * 1024 * 8}, Timeout:10000, MaxRetransmits:40";
         }
 
         public void PumpServer()
@@ -111,6 +123,7 @@ namespace StellarNet.Lite.Transports.KCP
             _isServerActive = true;
 
             NetLogger.LogInfo("KcpTransportProvider", $"KCP 服务端已启动，监听端口: {_appConfig.Port}");
+            NetLogger.LogInfo("KcpTransportProvider", $"KCP runtime check. ServerPump:Enabled, ReliableChannel:True, {DescribeKcpRuntime()}");
             OnServerStartedEvent?.Invoke();
         }
 
@@ -123,6 +136,7 @@ namespace StellarNet.Lite.Transports.KCP
             _server = null;
 
             NetLogger.LogInfo("KcpTransportProvider", "KCP 服务端已停止");
+            NetLogger.LogInfo("KcpTransportProvider", $"KCP server stopped. Recv:{Interlocked.Read(ref _serverKcpTotalPackets)}, Sent:{Interlocked.Read(ref _serverKcpSentPackets)}, DecodeFail:{Interlocked.Read(ref _serverKcpDeserializeFailures)}, Disconnects:{Interlocked.Read(ref _serverKcpDisconnects)}, Errors:{Interlocked.Read(ref _serverKcpErrors)}");
             OnServerStoppedEvent?.Invoke();
         }
 
@@ -133,12 +147,13 @@ namespace StellarNet.Lite.Transports.KCP
 
         private void OnServerDisconnected(int connectionId)
         {
+            Interlocked.Increment(ref _serverKcpDisconnects);
             OnServerClientDisconnectedEvent?.Invoke(connectionId);
         }
 
         private void OnServerDataReceived(int connectionId, ArraySegment<byte> message, KcpChannel channel)
         {
-            _serverKcpTotalPackets++;
+            Interlocked.Increment(ref _serverKcpTotalPackets);
             if (LitePacketFormatter.TryDeserialize(message.Array, message.Offset, message.Count, out Packet packet))
             {
                 // 服务端 KCP 泵运行在 ServerRuntimeHost 线程内，这里立即同步进入 ServerApp，
@@ -147,13 +162,14 @@ namespace StellarNet.Lite.Transports.KCP
             }
             else
             {
-                _serverKcpDeserializeFailures++;
+                Interlocked.Increment(ref _serverKcpDeserializeFailures);
                 NetLogger.LogWarning("KcpTransportProvider", $"KCP 服务端解包失败，长度={message.Count}，偏移={message.Offset}，连接={connectionId}");
             }
         }
 
         private void OnServerError(int connectionId, ErrorCode error, string reason)
         {
+            Interlocked.Increment(ref _serverKcpErrors);
             NetLogger.LogWarning("KcpTransportProvider", $"KCP 服务端连接异常: {error} - {reason}", "-", $"ConnId:{connectionId}");
         }
 
@@ -199,6 +215,8 @@ namespace StellarNet.Lite.Transports.KCP
             {
                 EnsureClientPumpRegistered();
             }
+
+            NetLogger.LogInfo("KcpTransportProvider", $"KCP runtime check. ClientPumpRegistration:{_clientPumpRegistrationId}, ReliableChannel:True, {DescribeKcpRuntime()}");
         }
 
         public void StopClient()
@@ -212,6 +230,7 @@ namespace StellarNet.Lite.Transports.KCP
             _client = null;
 
             NetLogger.LogInfo("KcpTransportProvider", "KCP 客户端已停止");
+            NetLogger.LogInfo("KcpTransportProvider", $"KCP client stopped. Recv:{Interlocked.Read(ref _clientKcpTotalPackets)}, Sent:{Interlocked.Read(ref _clientKcpSentPackets)}, DecodeFail:{Interlocked.Read(ref _clientKcpDeserializeFailures)}, Disconnects:{Interlocked.Read(ref _clientKcpDisconnects)}, Errors:{Interlocked.Read(ref _clientKcpErrors)}");
             OnClientStoppedEvent?.Invoke();
         }
 
@@ -224,12 +243,13 @@ namespace StellarNet.Lite.Transports.KCP
         private void OnClientDisconnected()
         {
             _isPhysicalConnected = false;
+            Interlocked.Increment(ref _clientKcpDisconnects);
             UnityPlayerLoopDispatcher.ExecuteOrPost(() => { OnClientDisconnectedEvent?.Invoke(); });
         }
 
         private void OnClientDataReceived(ArraySegment<byte> message, KcpChannel channel)
         {
-            _clientKcpTotalPackets++;
+            Interlocked.Increment(ref _clientKcpTotalPackets);
             if (LitePacketFormatter.TryDeserialize(message.Array, message.Offset, message.Count, out Packet packet))
             {
                 // KCP 底层缓冲区可能会被后续 Tick 复用，这里先复制成安全载荷再跨阶段投递。
@@ -240,13 +260,14 @@ namespace StellarNet.Lite.Transports.KCP
             }
             else
             {
-                _clientKcpDeserializeFailures++;
+                Interlocked.Increment(ref _clientKcpDeserializeFailures);
                 NetLogger.LogWarning("KcpTransportProvider", $"KCP 客户端解包失败，长度={message.Count}，偏移={message.Offset}");
             }
         }
 
         private void OnClientError(ErrorCode error, string reason)
         {
+            Interlocked.Increment(ref _clientKcpErrors);
             NetLogger.LogWarning("KcpTransportProvider", $"KCP 客户端连接异常: {error} - {reason}");
         }
 
@@ -272,9 +293,11 @@ namespace StellarNet.Lite.Transports.KCP
                 byte[] buffer = new byte[length];
                 int serializedLength = LitePacketFormatter.Serialize(packet, buffer, 0);
                 _client.Send(new ArraySegment<byte>(buffer, 0, serializedLength), KcpChannel.Reliable);
+                Interlocked.Increment(ref _clientKcpSentPackets);
             }
             catch (Exception ex)
             {
+                Interlocked.Increment(ref _clientKcpErrors);
                 NetLogger.LogError("KcpTransportProvider", $"KCP 客户端发送异常: {ex.Message}");
             }
         }
@@ -289,9 +312,11 @@ namespace StellarNet.Lite.Transports.KCP
                 byte[] buffer = new byte[length];
                 int serializedLength = LitePacketFormatter.Serialize(packet, buffer, 0);
                 _server.Send(connectionId, new ArraySegment<byte>(buffer, 0, serializedLength), KcpChannel.Reliable);
+                Interlocked.Increment(ref _serverKcpSentPackets);
             }
             catch (Exception ex)
             {
+                Interlocked.Increment(ref _serverKcpErrors);
                 NetLogger.LogError("KcpTransportProvider", $"KCP 服务端发送异常: {ex.Message}", "-", $"ConnId:{connectionId}");
             }
         }
@@ -344,6 +369,7 @@ namespace StellarNet.Lite.Transports.KCP
             }
             catch (Exception ex)
             {
+                Interlocked.Increment(ref _clientKcpErrors);
                 NetLogger.LogError("KcpTransportProvider", $"KCP 客户端泵异常: {ex.GetType().Name}, {ex.Message}");
             }
         }

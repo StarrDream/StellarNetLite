@@ -61,6 +61,7 @@ public class GameLauncher : MonoSingleton<GameLauncher>
     /// </summary>
     private void Start()
     {
+        StellarNetAppManager.OnClientStartedEvent += OnClientStarted;
         StellarNetAppManager.OnClientConnectedEvent += OnClientConnected;
         StellarNetAppManager.OnClientDisconnectedEvent += OnClientDisconnected;
 
@@ -74,6 +75,7 @@ public class GameLauncher : MonoSingleton<GameLauncher>
     protected override void OnDestroy()
     {
         base.OnDestroy();
+        StellarNetAppManager.OnClientStartedEvent -= OnClientStarted;
         StellarNetAppManager.OnClientConnectedEvent -= OnClientConnected;
         StellarNetAppManager.OnClientDisconnectedEvent -= OnClientDisconnected;
     }
@@ -81,15 +83,20 @@ public class GameLauncher : MonoSingleton<GameLauncher>
     /// <summary>
     /// 处理客户端连接成功事件。
     /// </summary>
+    private void OnClientStarted()
+    {
+        if (netMode == ENetMode.Server) return;
+        IsClientConnectedServer = false;
+        OpenClientPanels();
+        NetLogger.LogInfo("GameLauncher", "client core ready, login UI opened while waiting for server connection");
+    }
+
     private void OnClientConnected()
     {
         // 先更新连接状态，再刷新 UI。
         IsClientConnectedServer = true;
 
-        GlobalUIRouter.Instance.Init();
-        RoomViewManager.Instance.Init();
-        UIKit.OpenPanel<Panel_GlobalNetMonitor>();
-        UIKit.OpenPanel<Panel_StellarNetLogin>();
+        OpenClientPanels();
 
         NetLogger.LogInfo("GameLauncher", "连接完成");
     }
@@ -97,6 +104,14 @@ public class GameLauncher : MonoSingleton<GameLauncher>
     /// <summary>
     /// 处理客户端断开连接事件。
     /// </summary>
+    private void OpenClientPanels()
+    {
+        GlobalUIRouter.Instance.Init();
+        RoomViewManager.Instance.Init();
+        UIKit.OpenPanel<Panel_GlobalNetMonitor>();
+        UIKit.OpenPanel<Panel_StellarNetLogin>();
+    }
+
     private void OnClientDisconnected()
     {
         // 先更新连接状态，再通知断线处理。

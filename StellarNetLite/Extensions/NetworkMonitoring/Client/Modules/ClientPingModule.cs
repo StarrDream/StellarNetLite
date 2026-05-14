@@ -23,8 +23,9 @@ namespace StellarNet.Lite.Client.Modules
         [NetHandler]
         public void OnS2C_Pong(S2C_Pong msg)
         {
-            float rtt = Time.realtimeSinceStartup - msg.ClientTime;
-            GlobalTypeNetEvent.Broadcast(new Local_PingResult { RttMs = rtt * 1000f });
+            float now = Time.realtimeSinceStartup;
+            float rtt = now - msg.ClientTime;
+            GlobalTypeNetEvent.Broadcast(new Local_PingResult { RttMs = rtt * 1000f, ReceivedRealtime = now });
         }
     }
 }

@@ -8,6 +8,9 @@ namespace StellarNet.Lite.Client.Core.Events
         public int RttMs;
         public bool IsWeakNetWarn;
         public bool IsWeakNetBlock;
+        public float LastPacketAgeSeconds;
+        public int ConsecutiveTimeouts;
+        public bool IsPhysicalUnavailable;
     }
 
     /// <summary>
@@ -16,5 +19,6 @@ namespace StellarNet.Lite.Client.Core.Events
     public struct Local_PingResult
     {
         public float RttMs;
+        public float ReceivedRealtime;
     }
 }
